@@ -1,0 +1,24 @@
+{
+  "schema-version": "1.0",
+  "method": "POST",
+  "uri": "/v1/users/update",
+  "version": "HTTP/1.1",
+  "headers": [
+    {
+      "name": "Host",
+      "value": "api.production.internal"
+    },
+    {
+      "name": "Authorization",
+      "value": "Bearer abc123xyz"
+    },
+    {
+      "name": "Content-Type",
+      "value": "application/json"
+    }
+  ],
+  "body": {
+    "type": "text",
+    "content": "{\n  \"user preferences\": {\"theme\":\"dark\",\"notifications\":false},\n  \"name\": \"Taras Mazepa\",\n  \"description\": \"User bio: Software Engineer\\nLikes \\\"South Park\\\"\",\n  \"avatar_b64\": \"iVBORw0KGgoAAAANSUhEU...\"\n}"
+  }
+}
