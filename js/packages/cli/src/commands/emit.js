@@ -11,10 +11,10 @@ function executeWithCurl(ir, bodyStream, scheme) {
     const url = `${scheme}://${ir.host}${ir.uri}`;
     const args = ['-s', '-v', '-X', ir.method];
 
-    if (ir.version.includes('1.0')) args.push('--http1.0');
-    else if (ir.version.includes('1.1')) args.push('--http1.1');
-    else if (ir.version.includes('2')) args.push('--http2');
-    else if (ir.version.includes('3')) args.push('--http3');
+    if (ir.version === 'HTTP/1.0') args.push('--http1.0');
+    else if (ir.version === 'HTTP/1.1') args.push('--http1.1');
+    else if (ir.version === 'HTTP/2' || ir.version === 'HTTP/2.0') args.push('--http2');
+    else if (ir.version === 'HTTP/3') args.push('--http3');
 
     for (const { name, value } of ir.headers) {
       args.push('-H', `${name}: ${value}`);
