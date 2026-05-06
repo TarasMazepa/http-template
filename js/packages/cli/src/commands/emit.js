@@ -42,4 +42,4 @@ function emitCommand(file, flags) {
   // TODO: Read parsed IR, handle the --target <curl|fetch> flag, and call the respective executor.
   console.log(`[emit] Executing on file: ${file} with flags: ${JSON.stringify(flags)}`);
 }
-module.exports = emitCommand;
+module.exports = { emitCommand, executeWithCurl };
