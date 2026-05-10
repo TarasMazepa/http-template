@@ -26,7 +26,13 @@ function executeWithCurl(ir, bodyStream, scheme) {
     args.push(url);
 
     const curlProc = spawn('curl', args, { stdio: ['pipe', 'inherit', 'inherit'] });
-    curlProc.on('close', resolve);
+    curlProc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`curl process exited with code ${code}`));
+      }
+    });
     curlProc.on('error', reject);
 
     if (bodyStream && !['GET', 'HEAD'].includes(ir.method)) {
