@@ -1,0 +1,9 @@
+POST /v1/users/update HTTP/1.1
+Host: api.production.internal
+Authorization: Bearer abc123xyz
+Content-Type: application/json
+
+{
+  "user preferences": { "theme": "dark", "notifications": false },
+  "name": "Taras Mazepa"
+}

@@ -1,0 +1,15 @@
+{
+  "schema-version": "1.0",
+  "method": "POST",
+  "host": "api.production.internal",
+  "uri": "/v1/users/update",
+  "version": "HTTP/1.1",
+  "headers": [
+    { "name": "Authorization", "value": "Bearer abc123xyz" },
+    { "name": "Content-Type", "value": "application/json" }
+  ],
+  "body": {
+    "type": "text",
+    "content": "{\n  \"user preferences\": { \"theme\": \"dark\", \"notifications\": false },\n  \"name\": \"Taras Mazepa\"\n}"
+  }
+}

@@ -1,0 +1,4 @@
+GET /api/v1/search?q=term HTTP/1.1
+Host: api.example.com
+Authorization: Bearer token123
+Accept: application/json
