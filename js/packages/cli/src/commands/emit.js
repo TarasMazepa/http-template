@@ -20,7 +20,20 @@ function executeWithCurl(ir, bodyStream, scheme) {
       args.push('-H', `${name}: ${value}`);
     }
 
-    if (bodyStream && !['GET', 'HEAD'].includes(ir.method)) {
+    let buffer = null;
+    let hasBodyData = false;
+
+    if (ir.body && !['GET', 'HEAD'].includes(ir.method)) {
+      hasBodyData = true;
+      if (ir.body.type === 'text') {
+        buffer = Buffer.from(ir.body.content, 'utf-8');
+      } else if (ir.body.type === 'json') {
+        buffer = Buffer.from(JSON.stringify(ir.body.content), 'utf-8');
+      } else if (ir.body.type === 'base64') {
+        buffer = Buffer.from(ir.body.content, 'base64');
+      } else if (ir.body.type !== 'provided') {
+        throw new Error(`Unsupported httpt-ir body type: ${ir.body.type}`);
+      }
       args.push('--data-binary', '@-');
     }
     args.push(url);
@@ -35,8 +48,15 @@ function executeWithCurl(ir, bodyStream, scheme) {
     });
     curlProc.on('error', reject);
 
-    if (bodyStream && !['GET', 'HEAD'].includes(ir.method)) {
-      Readable.fromWeb(bodyStream).pipe(curlProc.stdin);
+    if (hasBodyData) {
+      if (buffer) {
+        curlProc.stdin.end(buffer);
+        if (bodyStream) bodyStream.cancel();
+      } else if (bodyStream) {
+        Readable.fromWeb(bodyStream).pipe(curlProc.stdin);
+      } else {
+        curlProc.stdin.end();
+      }
     } else {
       curlProc.stdin.end();
       if (bodyStream) bodyStream.cancel();

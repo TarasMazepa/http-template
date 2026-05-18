@@ -16,9 +16,19 @@ async function executeWithFetch(ir, bodyStream, scheme) {
 
   const requestInit = { method: ir.method, headers };
 
-  if (bodyStream && !['GET', 'HEAD'].includes(ir.method)) {
-    requestInit.body = bodyStream;
-    requestInit.duplex = 'half'; // Required for Node.js fetch streams
+  if (ir.body && !['GET', 'HEAD'].includes(ir.method)) {
+    let requestBody;
+    switch (ir.body.type) {
+      case 'text': requestBody = ir.body.content; break;
+      case 'json': requestBody = JSON.stringify(ir.body.content); break;
+      case 'base64': requestBody = Buffer.from(ir.body.content, 'base64'); break;
+      case 'provided': requestBody = bodyStream; break;
+      default: throw new Error(`Unsupported httpt-ir body type: ${ir.body.type}`);
+    }
+    requestInit.body = requestBody;
+    if (ir.body.type === 'provided') {
+      requestInit.duplex = 'half'; // Required for Node.js fetch streams
+    }
   } else if (bodyStream) {
     await bodyStream.cancel();
   }

@@ -1,53 +1,56 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
+const { Buffer } = require('node:buffer');
+const { ReadableStream } = require('node:stream/web');
 const { executeWithFetch } = require('../src/execute.js');
 
-test('executeWithFetch sends correct HTTP request over the wire', async () => {
-  // 1. Stand up the local echo server
+test('executeWithFetch body type matrix', async () => {
+  let capturedRequest = null;
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        method: req.method,
-        url: req.url,
-        headers: req.headers,
-        body: body
-      }));
+      capturedRequest = { method: req.method, body };
+      res.writeHead(200);
+      res.end();
     });
   });
 
-  // 2. Listen on port 0 to let the OS assign a random free port
-  await new Promise((resolve) => server.listen(0, resolve));
+  await new Promise(resolve => server.listen(0, resolve));
   const port = server.address().port;
 
-  // 3. Define a mock IR
-  const mockIR = {
-    'schema-version': '1.0',
-    method: 'POST',
-    host: `localhost:${port}`,
-    uri: '/api/submit?foo=bar',
-    version: 'HTTP/1.1',
-    headers: [
-      { name: 'X-Custom-Auth', value: 'secret' },
-      { name: 'Content-Type', value: 'application/json' }
-    ]
-  };
+  async function runCase(bodyConfig, expectedBody, method = 'POST', bodyStream = null) {
+    const mockIR = {
+      'schema-version': '1.0', method, host: `localhost:${port}`, uri: '/', version: 'HTTP/1.1', headers: []
+    };
+    if (bodyConfig !== undefined) mockIR.body = bodyConfig;
+
+    await executeWithFetch(mockIR, bodyStream, 'http');
+    assert.strictEqual(capturedRequest.body, expectedBody, `Failed on ${bodyConfig?.type || 'no body'}`);
+  }
 
   try {
-    // 4. Execute the sink against the local server (force 'http' scheme)
-    const response = await executeWithFetch(mockIR, null, 'http');
-    const echo = await response.json();
+    // 1. No Body
+    await runCase(undefined, '', 'GET');
+    // 2. Text
+    await runCase({ type: 'text', content: 'hello' }, 'hello');
+    // 3. Base64
+    await runCase({ type: 'base64', content: Buffer.from('binary').toString('base64') }, 'binary');
+    // 4. JSON
+    await runCase({ type: 'json', content: { foo: 'bar' } }, '{"foo":"bar"}');
+    // 5. Provided
+    const stream = new ReadableStream({ start(c) { c.enqueue(Buffer.from('streamed')); c.close(); }});
+    await runCase({ type: 'provided' }, 'streamed', 'POST', stream);
+    // 7. Mismatch (Text type containing JSON string should not be altered)
+    await runCase({ type: 'text', content: '{"looks":"like json"}' }, '{"looks":"like json"}');
 
-    // 5. Assert the server received exactly what we expected
-    assert.strictEqual(echo.method, 'POST');
-    assert.strictEqual(echo.url, '/api/submit?foo=bar');
-    assert.strictEqual(echo.headers['x-custom-auth'], 'secret');
-    assert.strictEqual(echo.headers['content-type'], 'application/json');
+    // 6. Unknown Type
+    await assert.rejects(
+      executeWithFetch({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, null, 'http'),
+      /Unsupported httpt-ir body type: magic/
+    );
   } finally {
-    // 6. Tear down the server
     server.close();
   }
 });
