@@ -5,6 +5,12 @@
  */
 
 /**
+ * @typedef {Object} HttptBody
+ * @property {"text"|"base64"|"json"|"provided"} type
+ * @property {any} [content] - The payload data (omitted if type is "provided")
+ */
+
+/**
  * @typedef {Object} HttptIR
  * @property {string} schema-version - e.g., "1.0"
  * @property {string} method         - e.g., "GET", "POST", "PUT"
@@ -12,6 +18,7 @@
  * @property {string} uri            - e.g., "/api/v1/search?q=term"
  * @property {string} version        - e.g., "HTTP/1.1", "HTTP/2"
  * @property {HttpHeader[]} headers  - The remaining headers
+ * @property {HttptBody} [body]      - The optional request payload
  */
 
 module.exports = {};
