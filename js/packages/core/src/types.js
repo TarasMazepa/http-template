@@ -7,7 +7,7 @@
 /**
  * @typedef {Object} HttptBody
  * @property {"text"|"base64"|"json"|"provided"} type
- * @property {any} [content] - The payload data (omitted if type is "provided")
+ * @property {any} [content] - The payload data (String for "text" and "base64", Object/Array for "json", omitted for "provided")
  */
 
 /**
