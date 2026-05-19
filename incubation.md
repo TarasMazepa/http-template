@@ -1,8 +1,10 @@
+# I. Introduction & Philosophy
+
 **httpt** (HTTP Template) is a system for defining HTTP requests using raw HTTP message formats (RFC 9110/9112) as templates.
 
 Because `httpt` targets multiple execution environments and delegates the actual network request to underlying clients (like `curl` or `fetch`), a pure string-replacement engine creates too much friction for structured data. To safely construct requests, the template syntax provides strict, context-aware encodings (handling JSON quotes, URL escaping, or raw binary streams) before parsing the payload via a custom native pipeline.
 
-## The Format of `.httpt`
+## The Format of .httpt
 
 At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9110/9112). The template must structurally represent a valid HTTP request *before* and *after* hydration. The file is always divided into three distinct parts:
 
@@ -10,7 +12,7 @@ At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9
 2. **The Headers:** A list of key-value pairs.
 3. **The Body (Optional):** Separated from the headers by a mandatory blank line.
 
-### Anatomy of the Template
+## Anatomy of the Template
 
 ```http
 [METHOD] [PATH_AND_QUERY] [HTTP_VERSION]
@@ -20,7 +22,55 @@ At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9
 [Optional Body]
 ```
 
-### Common Cases & Variations
+# II. The Parsing & Execution Pipeline
+
+## Parsing & Execution Pipeline
+
+The execution of an `.httpt` file relies on a highly optimized, custom native pipeline.
+
+* **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
+  * **Input:** Consumes either a file stream or an in-memory string, reading it character-by-character.
+  * **Output:** Writes in-place, outputting either directly to a hydrated `.httpt-r` file ("Resolved") or streaming directly into the downstream custom native parser.
+  * **Performance:** Achieves O(1) memory overhead since it does not build intermediate data structures for the template logic.
+  * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `readCursor` and a `writeCursor` whenever a `{{ function param }}` tag is resolved.
+* **Parse & Validate Stage Mechanism (Custom Native Parser)** / Validates / the hydrated `.httpt-r` string or stream using a fast, native parser designed for a strict subset of HTTP.
+  * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body.
+  * **Head Parsing:** The Request Line and Headers are parsed using fast, native string splitting. The Request Line is split by spaces, and headers are split by the first colon (`:`).
+  * **O(1) Body Handoff:** The parser stops reading exactly at the double newline boundary. The unread remainder of the stream (the Body) is handed off directly to the downstream execution client without being buffered or mapped into memory.
+  * **Error Handling:** Syntax errors (like malformed headers) caught during this native string splitting must still query the **Index Shift Map** to point the error back to the exact character index in the user's original `.httpt` file.
+* **Execute Stage Mechanism** / Hands off / the fully resolved request to the execution client (e.g., `fetch`, `curl`) if the parsed request is valid.
+
+# III. The Source Template (.httpt)
+
+## Templating Syntax
+
+Rather than providing implicit context-aware escaping, `httpt` prioritizes explicit user control. The syntax is inspired by Handlebars/Nunjucks but is strictly function-based: `{{ function parameter_name }}`. Here, `parameter_name` refers to the key in the data context, not the literal value.
+
+**Note:** The default syntax without a function (e.g., `{{ parameter_name }}`) is invalid. Users *must* explicitly define how the data enters the HTTP stream. This ensures that the hydration state machine can catch malformed templates immediately and forces developer explicitness.
+
+## Built-in Escaping Options
+
+#### Core Functions
+These handle basic data injection and URL safety.
+
+* **raw Mechanism** / Injects / the variable exactly as provided in the data map with zero escaping or transformation. Mandatory for all direct injections (`{{ raw host_url }}`).
+* **url Mechanism** / Percent-encodes / the value (e.g., space becomes `%20`, `#` becomes `%23`) for safe use in URL paths or query parameters (`{{ url path }}`).
+
+#### JSON Functions
+Designed to allow precise control over JSON structure without breaking syntax. Similar granular patterns (`xml-*`, `yml-*`) will follow in the future.
+
+* **json-value Mechanism** / Serializes / the parameter into its native JSON representation (e.g., boolean `true`, list `[1,2]`, object `{"k":"v"}`). If the variable is a string, it includes the surrounding quotes. If it is a boolean or number, it remains unquoted (`{{ json-value obj }}`).
+* **json-string Mechanism** / Escapes / internal characters only (e.g., newlines, tabs, and internal double quotes `"` becomes `\"`). It does not wrap the output in quotes, allowing it to be concatenated inside a larger string (`{{ json-string bio }}`).
+* **json-key Mechanism** / Safely escapes / a string specifically for use as a JSON property key (`{{ json-key name }}`).
+
+#### File Functions
+These functions instruct the execution engine how to resolve a local file path into a payload.
+
+* **file-as-base64 Mechanism** / Encodes / the binary content of a file into a Base64 string, ideal for JSON image uploads (`{{ file-as-base64 path }}`).
+* **file-as-utf8 Mechanism** / Reads / the file as a UTF-8 text string, useful for injecting external GraphQL queries or XML blocks (`{{ file-as-utf8 path }}`).
+* **file-as-is Mechanism** / Signals / the engine to treat the value as a raw binary stream, used for `multipart/form-data` or binary body uploads (`{{ file-as-is path }}`).
+
+## Common Cases & Variations
 
 Depending on the API being called, the "raw HTTP" structure will look different. Here are the primary cases `.httpt` files will need to support:
 
@@ -81,132 +131,37 @@ Content-Type: application/pdf
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 ```
 
-#### Design Note: Line Endings (`\n` vs `\r\n`)
-While the official HTTP specification (RFC 9110/9112) strictly requires `CRLF` (`\r\n`) for line terminators, `httpt` relaxes this requirement for templates.
+# IV. The Intermediate Representation (.httpt-ir)
 
-Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `curl`, `fetch`) rather than being streamed directly to a raw TCP socket, the parser fully supports standard Unix `LF` (`\n`) line endings. This allows developers to write and format `.httpt` files naturally in any modern text editor, relying on the underlying HTTP client to enforce standard wire-level formatting during execution. If direct socket execution is supported in the future, the **Emit Stage** can be updated to normalize line endings automatically.
+## The Intermediate Representation (IR)
 
-## Design Note: Transport Protocol & Scheme
+Once the Parse Stage successfully validates the hydrated `.httpt-r` string, it maps the extracted HTTP components into a strictly defined **Intermediate Representation (IR)**.
 
-A fundamental quirk of bridging raw HTTP with modern execution clients (like `fetch` or `curl`) is that standard origin-form HTTP requests (RFC 9110/9112) do not inherently include the `http://` or `https://` scheme.
+To ensure maximum portability across execution environments (Dart, Node.js, CLI) and to enable deterministic unit testing, the IR is defined as a standard JSON structure. This serves as the definitive contract between the *Parse Stage* and the *Execute Stage*.
 
-```http
-GET /api/v1/search HTTP/1.1
-Host: api.example.com
-```
+*(Note: While the Intermediate Representation is structurally a standard JSON object, it is saved to disk using the proprietary `.httpt-ir` extension to maintain the ecosystem namespace and avoid tooling conflicts).*
 
-In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the `httpt` *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the pipeline needs a way to resolve the scheme.
+## IR JSON Schema
 
-To solve this, `httpt` approaches the problem in two phases:
+The JSON object represents the fully resolved request, stripped of all internal parsing artifacts.
 
-### 1. Current Solution: Out-of-Band Configuration
-To preserve the pristine, RFC-compliant nature of `.httpt` files, the template itself remains completely ignorant of the transport protocol. The scheme and port are pushed out-of-band and provided by the execution environment.
+* **`schema-version`**: The version of the IR structure (currently `"1.0"`).
+* **`host`**: The extracted target host/authority for the request (e.g., `"api.production.internal"`). Note: The Parse Stage should extract the `Host` header (or `:authority` pseudo-header) to populate this root field.
+* **`method`**: The HTTP method (e.g., `GET`, `POST`).
+* **`uri`**: The exact target path and query string (e.g., `/api/v1/search?q=term`).
+* **`version`**: The HTTP protocol version (e.g., `HTTP/1.1`).
+* **`headers`**: An array of key-value objects. An array is used instead of a standard JSON dictionary to safely preserve multiple headers with the exact same name without data loss.
+- `body` *(Optional)*: An object defining the payload structure using a discriminated union.
+  - `type`: Indicates how the execution client should handle the content. Strict allowed values:
+    - `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
+    - `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
+    - `"json"`: A native JSON object or array. The executor natively stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
+    - `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
+  - `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
 
-* **CLI Environment:** Configured via flags (e.g., `httpt run --scheme https submit.httpt`).
-* **SDK Environment (Dart/JS):** Passed as configuration objects (e.g., `httpt.execute(template, data, { scheme: 'https' })`).
+# V. End-to-End Examples
 
-This keeps the native parser lightweight and strictly focused on validating standard HTTP text without needing complex URI scheme resolution.
-
-### 2. Future Enhancement: Pseudo-Headers
-To eventually allow templates to be self-contained without relying on external configuration, `httpt` plans to support HTTP/2-style **pseudo-headers**.
-
-```http
-GET /api/v1/search HTTP/1.1
-:scheme: https
-Host: api.example.com
-```
-
-This acts as a "bogus" header within the template. The *Execute Stage* will read the pseudo-header, configure the transport layer accordingly, and then strip it out completely before handing the final sanitized payload to the underlying client.
-
-**Implementation Requirements:**
-* **Parser Rules:** The native parser's header-splitting logic will need to intentionally relax the strict RFC token definitions to allow a leading colon (`:`) for the first few lines, effectively creating a hybrid HTTP/1.1 and HTTP/2 parsing model.
-* **Strict Ordering:** The parser (or the Execute Stage) must enforce the rule that all pseudo-headers must appear *before* any regular headers.
-* **Execution Stripping:** The Execute Stage must extract these pseudo-headers to configure the transport layer, and then completely strip them from the final header map before handing the payload off to underlying clients (like `fetch` or `curl`) to prevent `TypeError`s.
-
-### Alternative Approaches Considered
-During the design phase, we evaluated and rejected several other options to ensure the format remains pure and predictable:
-
-* **Absolute URIs (`GET https://api.example.com/v1 HTTP/1.1`):** While technically permitted by RFC 9110/9112 (mostly for proxies), it clutters the request line and makes the required `Host` header partially redundant.
-* **Port Inference from `Host`:** Guessing the scheme based on the port (e.g., assuming `:443` means `https`) is brittle. It forces the executor to default to `https` when omitted, and breaks entirely if an API runs HTTPS on a non-standard port like `8443`.
-* **YAML Frontmatter:** Injecting a metadata block at the top of the file was discarded because it breaks the "it's just a raw HTTP string" philosophy and complicates the parsing pipeline.
-
-## Templating Syntax
-
-Rather than providing implicit context-aware escaping, `httpt` prioritizes explicit user control. The syntax is inspired by Handlebars/Nunjucks but is strictly function-based: `{{ function parameter_name }}`. Here, `parameter_name` refers to the key in the data context, not the literal value.
-
-**Note:** The default syntax without a function (e.g., `{{ parameter_name }}`) is invalid. Users *must* explicitly define how the data enters the HTTP stream. This ensures that the hydration state machine can catch malformed templates immediately and forces developer explicitness.
-
-### Built-in Escaping Options
-
-#### Core Functions
-These handle basic data injection and URL safety.
-
-* **raw Mechanism** / Injects / the variable exactly as provided in the data map with zero escaping or transformation. Mandatory for all direct injections (`{{ raw host_url }}`).
-* **url Mechanism** / Percent-encodes / the value (e.g., space becomes `%20`, `#` becomes `%23`) for safe use in URL paths or query parameters (`{{ url path }}`).
-
-#### JSON Functions
-Designed to allow precise control over JSON structure without breaking syntax. Similar granular patterns (`xml-*`, `yml-*`) will follow in the future.
-
-* **json-value Mechanism** / Serializes / the parameter into its native JSON representation (e.g., boolean `true`, list `[1,2]`, object `{"k":"v"}`). If the variable is a string, it includes the surrounding quotes. If it is a boolean or number, it remains unquoted (`{{ json-value obj }}`).
-* **json-string Mechanism** / Escapes / internal characters only (e.g., newlines, tabs, and internal double quotes `"` becomes `\"`). It does not wrap the output in quotes, allowing it to be concatenated inside a larger string (`{{ json-string bio }}`).
-* **json-key Mechanism** / Safely escapes / a string specifically for use as a JSON property key (`{{ json-key name }}`).
-
-#### File Functions
-These functions instruct the execution engine how to resolve a local file path into a payload.
-
-* **file-as-base64 Mechanism** / Encodes / the binary content of a file into a Base64 string, ideal for JSON image uploads (`{{ file-as-base64 path }}`).
-* **file-as-utf8 Mechanism** / Reads / the file as a UTF-8 text string, useful for injecting external GraphQL queries or XML blocks (`{{ file-as-utf8 path }}`).
-* **file-as-is Mechanism** / Signals / the engine to treat the value as a raw binary stream, used for `multipart/form-data` or binary body uploads (`{{ file-as-is path }}`).
-
-## Parsing & Execution Pipeline
-
-The execution of an `.httpt` file relies on a highly optimized, custom native pipeline.
-
-* **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
-  * **Input:** Consumes either a file stream or an in-memory string, reading it character-by-character.
-  * **Output:** Writes in-place, outputting either directly to a hydrated `.httpt-r` file ("Resolved") or streaming directly into the downstream custom native parser.
-  * **Performance:** Achieves O(1) memory overhead since it does not build intermediate data structures for the template logic.
-  * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `readCursor` and a `writeCursor` whenever a `{{ function param }}` tag is resolved.
-* **Parse & Validate Stage Mechanism (Custom Native Parser)** / Validates / the hydrated `.httpt-r` string or stream using a fast, native parser designed for a strict subset of HTTP.
-  * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body.
-  * **Head Parsing:** The Request Line and Headers are parsed using fast, native string splitting. The Request Line is split by spaces, and headers are split by the first colon (`:`).
-  * **O(1) Body Handoff:** The parser stops reading exactly at the double newline boundary. The unread remainder of the stream (the Body) is handed off directly to the downstream execution client without being buffered or mapped into memory.
-  * **Error Handling:** Syntax errors (like malformed headers) caught during this native string splitting must still query the **Index Shift Map** to point the error back to the exact character index in the user's original `.httpt` file.
-* **Execute Stage Mechanism** / Hands off / the fully resolved request to the execution client (e.g., `fetch`, `curl`) if the parsed request is valid.
-
-## Design Note: Source Mapping Trade-off
-
-Because we hydrate before parsing, native parser validation errors will point to character indices in the hydrated `.httpt-r` string rather than the original `.httpt` template.
-
-To solve this without bloating the parser, the *Hydrate Stage* emits a dedicated **Index Shift Map** as a sidecar artifact. This JSON file acts as a stateless, highly queryable source map for the downstream execution engine.
-
-### The Index Shift Map
-
-By explicitly storing both the start index and the length of every substitution, the map is mathematically redundant but allows the error handler to instantly reverse-map native parser errors without tracking state or calculating cumulative deltas.
-
-```json
-{
-  "schema-version": "1.0",
-  "substitutions": [
-    {
-      "original-start": 42,       // Where the {{ tag }} started
-      "original-length": 15,      // The length of the {{ tag }}
-      "hydrated-start": 42,       // Where the injected string starts
-      "hydrated-length": 81       // The length of the injected string
-    }
-  ]
-}
-```
-
-When the execution engine catches a syntax error (e.g., at character 100), it can simply query this map to find the overlapping `hydrated_start` and `hydrated_length` bounds, instantly tracing the failure back to the exact `original_start` block in the developer's `.httpt` file.
-
-## Environments & Hydration Contexts
-Because `httpt` delegates the actual network request to underlying clients, the data supplied for hydration depends on the execution environment:
-
-* **Command Line (CLI):** Operates primarily on files. You provide a `.httpt` file and a data source (e.g., via `--data payload.json`, env vars, or stdin). The CLI hydrates it into a `.httpt-r` string, parses it into the IR, and passes it directly to a standard client like `curl`.
-* **JavaScript / Dart SDK:** Operates entirely in memory. You pass the template as a raw string directly to the execution function, along with a native dictionary/map of your data. The library hydrates and parses it in-memory, executing the request using standard APIs like `fetch` or `dart:io HttpClient`.
-
-## Implementation Examples
+## End-to-End Examples
 
 ### Scenario 1: A Complex User Update Request
 
@@ -282,32 +237,6 @@ Content-Type: application/octet-stream
 <Binary Stream: ./docs/report.pdf>
 ```
 
-## The Intermediate Representation (IR)
-
-Once the Parse Stage successfully validates the hydrated `.httpt-r` string, it maps the extracted HTTP components into a strictly defined **Intermediate Representation (IR)**.
-
-To ensure maximum portability across execution environments (Dart, Node.js, CLI) and to enable deterministic unit testing, the IR is defined as a standard JSON structure. This serves as the definitive contract between the *Parse Stage* and the *Execute Stage*.
-
-*(Note: While the Intermediate Representation is structurally a standard JSON object, it is saved to disk using the proprietary `.httpt-ir` extension to maintain the ecosystem namespace and avoid tooling conflicts).*
-
-### IR JSON Schema
-
-The JSON object represents the fully resolved request, stripped of all internal parsing artifacts.
-
-* **`schema-version`**: The version of the IR structure (currently `"1.0"`).
-* **`host`**: The extracted target host/authority for the request (e.g., `"api.production.internal"`). Note: The Parse Stage should extract the `Host` header (or `:authority` pseudo-header) to populate this root field.
-* **`method`**: The HTTP method (e.g., `GET`, `POST`).
-* **`uri`**: The exact target path and query string (e.g., `/api/v1/search?q=term`).
-* **`version`**: The HTTP protocol version (e.g., `HTTP/1.1`).
-* **`headers`**: An array of key-value objects. An array is used instead of a standard JSON dictionary to safely preserve multiple headers with the exact same name without data loss.
-- `body` *(Optional)*: An object defining the payload structure using a discriminated union.
-  - `type`: Indicates how the execution client should handle the content. Strict allowed values:
-    - `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
-    - `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
-    - `"json"`: A native JSON object or array. The executor natively stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
-    - `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
-  - `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
-
 ### Examples: Hydrated Requests to JSON
 
 Given the hydrated `.httpt-r` string from **Scenario 1**:
@@ -378,24 +307,14 @@ The Parse Stage will output the following IR JSON:
 }
 ```
 
-### The Testing Pipeline
+# VI. Ecosystem & Tooling
 
-Defining the IR as JSON unlocks a highly decoupled testing pipeline:
+## Environments & Hydration Contexts
 
-1.  **Parser Tests (`.httpt-r` -> `.httpt-ir`):** Feed raw HTTP strings into the native parser and assert the exact JSON output.
-2.  **Executor Tests (`.httpt-ir` -> Network):** Feed mock IR files into the execution engine and assert that the correct `curl` arguments or `fetch` configurations are generated.
+Because `httpt` delegates the actual network request to underlying clients, the data supplied for hydration depends on the execution environment:
 
-Future Exploration: Response Templating
-While httpt is currently designed around HTTP requests, the underlying RFC 9112 structure for HTTP responses is nearly identical (differing only by replacing the Request-Line with a Status-Line).
-
-Expanding httpt to template responses unlocks two powerful workflows:
-
-Mocking: Standing up local mock servers that serve hydrated .httpt response templates.
-Asserting: Firing a real request and validating the server's output against a .httpt response template during integration testing.
-Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal pipeline changes:
-
-Parser State: The native parser's Request Line evaluation must branch at the root to accept either a Request-Line or a Status-Line.
-IR Schema: The Intermediate Representation (IR) JSON must introduce a root type field (e.g., "type": "request" | "response") so the downstream Execute Stage knows how to interpret the payload.
+* **Command Line (CLI):** Operates primarily on files. You provide a `.httpt` file and a data source (e.g., via `--data payload.json`, env vars, or stdin). The CLI hydrates it into a `.httpt-r` string, parses it into the IR, and passes it directly to a standard client like `curl`.
+* **JavaScript / Dart SDK:** Operates entirely in memory. You pass the template as a raw string directly to the execution function, along with a native dictionary/map of your data. The library hydrates and parses it in-memory, executing the request using standard APIs like `fetch` or `dart:io HttpClient`.
 
 ## Static Analysis & Contract Validation
 
@@ -442,3 +361,109 @@ try {
   }
 }
 ```
+
+## The Testing Pipeline
+
+Defining the IR as JSON unlocks a highly decoupled testing pipeline:
+
+1.  **Parser Tests (`.httpt-r` -> `.httpt-ir`):** Feed raw HTTP strings into the native parser and assert the exact JSON output.
+2.  **Executor Tests (`.httpt-ir` -> Network):** Feed mock IR files into the execution engine and assert that the correct `curl` arguments or `fetch` configurations are generated.
+
+# VII. Design Decisions & Trade-offs
+
+## Design Decisions & Trade-offs
+
+### Design Note: Transport Protocol & Scheme
+
+A fundamental quirk of bridging raw HTTP with modern execution clients (like `fetch` or `curl`) is that standard origin-form HTTP requests (RFC 9110/9112) do not inherently include the `http://` or `https://` scheme.
+
+```http
+GET /api/v1/search HTTP/1.1
+Host: api.example.com
+```
+
+In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the `httpt` *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the pipeline needs a way to resolve the scheme.
+
+To solve this, `httpt` approaches the problem in two phases:
+
+### 1. Current Solution: Out-of-Band Configuration
+To preserve the pristine, RFC-compliant nature of `.httpt` files, the template itself remains completely ignorant of the transport protocol. The scheme and port are pushed out-of-band and provided by the execution environment.
+
+* **CLI Environment:** Configured via flags (e.g., `httpt run --scheme https submit.httpt`).
+* **SDK Environment (Dart/JS):** Passed as configuration objects (e.g., `httpt.execute(template, data, { scheme: 'https' })`).
+
+This keeps the native parser lightweight and strictly focused on validating standard HTTP text without needing complex URI scheme resolution.
+
+#### Alternative Approaches Considered
+
+During the design phase, we evaluated and rejected several other options to ensure the format remains pure and predictable:
+
+* **Absolute URIs (`GET https://api.example.com/v1 HTTP/1.1`):** While technically permitted by RFC 9110/9112 (mostly for proxies), it clutters the request line and makes the required `Host` header partially redundant.
+* **Port Inference from `Host`:** Guessing the scheme based on the port (e.g., assuming `:443` means `https`) is brittle. It forces the executor to default to `https` when omitted, and breaks entirely if an API runs HTTPS on a non-standard port like `8443`.
+* **YAML Frontmatter:** Injecting a metadata block at the top of the file was discarded because it breaks the "it's just a raw HTTP string" philosophy and complicates the parsing pipeline.
+
+### Design Note: Line Endings (\n vs \r\n)
+
+While the official HTTP specification (RFC 9110/9112) strictly requires `CRLF` (`\r\n`) for line terminators, `httpt` relaxes this requirement for templates.
+
+Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `curl`, `fetch`) rather than being streamed directly to a raw TCP socket, the parser fully supports standard Unix `LF` (`\n`) line endings. This allows developers to write and format `.httpt` files naturally in any modern text editor, relying on the underlying HTTP client to enforce standard wire-level formatting during execution. If direct socket execution is supported in the future, the **Emit Stage** can be updated to normalize line endings automatically.
+
+### Design Note: Source Mapping Trade-off
+
+Because we hydrate before parsing, native parser validation errors will point to character indices in the hydrated `.httpt-r` string rather than the original `.httpt` template.
+
+To solve this without bloating the parser, the *Hydrate Stage* emits a dedicated **Index Shift Map** as a sidecar artifact. This JSON file acts as a stateless, highly queryable source map for the downstream execution engine.
+
+#### The Index Shift Map
+
+By explicitly storing both the start index and the length of every substitution, the map is mathematically redundant but allows the error handler to instantly reverse-map native parser errors without tracking state or calculating cumulative deltas.
+
+```json
+{
+  "schema-version": "1.0",
+  "substitutions": [
+    {
+      "original-start": 42,       // Where the {{ tag }} started
+      "original-length": 15,      // The length of the {{ tag }}
+      "hydrated-start": 42,       // Where the injected string starts
+      "hydrated-length": 81       // The length of the injected string
+    }
+  ]
+}
+```
+
+When the execution engine catches a syntax error (e.g., at character 100), it can simply query this map to find the overlapping `hydrated_start` and `hydrated_length` bounds, instantly tracing the failure back to the exact `original_start` block in the developer's `.httpt` file.
+
+# VIII. Future Explorations
+
+## Future Explorations
+
+### Future Enhancement: Pseudo-Headers
+
+To eventually allow templates to be self-contained without relying on external configuration, `httpt` plans to support HTTP/2-style **pseudo-headers**.
+
+```http
+GET /api/v1/search HTTP/1.1
+:scheme: https
+Host: api.example.com
+```
+
+This acts as a "bogus" header within the template. The *Execute Stage* will read the pseudo-header, configure the transport layer accordingly, and then strip it out completely before handing the final sanitized payload to the underlying client.
+
+**Implementation Requirements:**
+* **Parser Rules:** The native parser's header-splitting logic will need to intentionally relax the strict RFC token definitions to allow a leading colon (`:`) for the first few lines, effectively creating a hybrid HTTP/1.1 and HTTP/2 parsing model.
+* **Strict Ordering:** The parser (or the Execute Stage) must enforce the rule that all pseudo-headers must appear *before* any regular headers.
+* **Execution Stripping:** The Execute Stage must extract these pseudo-headers to configure the transport layer, and then completely strip them from the final header map before handing the payload off to underlying clients (like `fetch` or `curl`) to prevent `TypeError`s.
+
+### Future Exploration: Response Templating
+
+While httpt is currently designed around HTTP requests, the underlying RFC 9112 structure for HTTP responses is nearly identical (differing only by replacing the Request-Line with a Status-Line).
+
+Expanding httpt to template responses unlocks two powerful workflows:
+
+Mocking: Standing up local mock servers that serve hydrated .httpt response templates.
+Asserting: Firing a real request and validating the server's output against a .httpt response template during integration testing.
+Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal pipeline changes:
+
+Parser State: The native parser's Request Line evaluation must branch at the root to accept either a Request-Line or a Status-Line.
+IR Schema: The Intermediate Representation (IR) JSON must introduce a root type field (e.g., "type": "request" | "response") so the downstream Execute Stage knows how to interpret the payload.
