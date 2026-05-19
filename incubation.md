@@ -26,6 +26,9 @@ At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9
 
 ## Parsing & Execution Pipeline
 
+*(See Design Note: Line Endings in Section VII for rationale).*
+
+
 The execution of an `.httpt` file relies on a highly optimized, custom native pipeline.
 
 * **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
@@ -163,7 +166,7 @@ The JSON object represents the fully resolved request, stripped of all internal 
 
 ## End-to-End Examples
 
-### Scenario 1: A Complex User Update Request
+### Example 1: Complex User Update Request
 
 **`update-user.httpt` (The Template)**
 ```http
@@ -208,7 +211,7 @@ Content-Type: application/json
 }
 ```
 
-### Scenario 2: Binary File Upload with URL Encoding
+### Example 2: Binary File Upload
 
 **`upload-document.httpt` (The Template)**
 ```http
@@ -237,7 +240,7 @@ Content-Type: application/octet-stream
 <Binary Stream: ./docs/report.pdf>
 ```
 
-### Examples: Hydrated Requests to JSON
+### Example 3: Hydrated Requests to JSON
 
 Given the hydrated `.httpt-r` string from **Scenario 1**:
 
@@ -279,7 +282,7 @@ The Parse Stage will output the following IR JSON:
 }
 ```
 
-### Example 2: A Bodyless Request (GET)
+### Example 4: A Bodyless Request (GET)
 
 When a request does not contain a body, the `body` key is completely omitted from the Intermediate Representation.
 
