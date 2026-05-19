@@ -105,7 +105,7 @@ To preserve the pristine, RFC-compliant nature of `.httpt` files, the template i
 * **CLI Environment:** Configured via flags (e.g., `httpt run --scheme https submit.httpt`).
 * **SDK Environment (Dart/JS):** Passed as configuration objects (e.g., `httpt.execute(template, data, { scheme: 'https' })`).
 
-This keeps the ANTLR parser lightweight and strictly focused on validating standard HTTP text.
+This keeps the native parser lightweight and strictly focused on validating standard HTTP text without needing complex URI scheme resolution.
 
 ### 2. Future Enhancement: Pseudo-Headers
 To eventually allow templates to be self-contained without relying on external configuration, `httpt` plans to support HTTP/2-style **pseudo-headers**.
@@ -119,7 +119,7 @@ Host: api.example.com
 This acts as a "bogus" header within the template. The *Execute Stage* will read the pseudo-header, configure the transport layer accordingly, and then strip it out completely before handing the final sanitized payload to the underlying client.
 
 **Implementation Requirements:**
-* **ANTLR Grammar Changes:** The `Httpr.g4` grammar will need to intentionally relax the strict RFC 9110/9112 `token` definition for header keys to allow a leading colon (`:`), effectively creating a hybrid HTTP/1.1 and HTTP/2 grammar.
+* **Parser Rules:** The native parser's header-splitting logic will need to intentionally relax the strict RFC token definitions to allow a leading colon (`:`) for the first few lines, effectively creating a hybrid HTTP/1.1 and HTTP/2 parsing model.
 * **Strict Ordering:** The parser (or the Execute Stage) must enforce the rule that all pseudo-headers must appear *before* any regular headers.
 * **Execution Stripping:** The Execute Stage must extract these pseudo-headers to configure the transport layer, and then completely strip them from the final header map before handing the payload off to underlying clients (like `fetch` or `curl`) to prevent `TypeError`s.
 
@@ -134,7 +134,7 @@ During the design phase, we evaluated and rejected several other options to ensu
 
 Rather than providing implicit context-aware escaping, `httpt` prioritizes explicit user control. The syntax is inspired by Handlebars/Nunjucks but is strictly function-based: `{{ function parameter_name }}`. Here, `parameter_name` refers to the key in the data context, not the literal value.
 
-**Note:** The default syntax without a function (e.g., `{{ parameter_name }}`) is invalid. Users *must* explicitly define how the data enters the HTTP stream. This ensures that the ANTLR parser can catch errors immediately and forces developer explicitness.
+**Note:** The default syntax without a function (e.g., `{{ parameter_name }}`) is invalid. Users *must* explicitly define how the data enters the HTTP stream. This ensures that the hydration state machine can catch malformed templates immediately and forces developer explicitness.
 
 ### Built-in Escaping Options
 
@@ -160,7 +160,7 @@ These functions instruct the execution engine how to resolve a local file path i
 
 ## Parsing & Execution Pipeline
 
-The execution of an `.httpt` file relies on a structured pipeline backed by ANTLR.
+The execution of an `.httpt` file relies on a highly optimized, custom native pipeline.
 
 * **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
   * **Input:** Consumes either a file stream or an in-memory string, reading it character-by-character.
@@ -176,13 +176,13 @@ The execution of an `.httpt` file relies on a structured pipeline backed by ANTL
 
 ## Design Note: Source Mapping Trade-off
 
-Because we hydrate before parsing, ANTLR validation errors will point to character indices in the hydrated `.httpt-r` string rather than the original `.httpt` template.
+Because we hydrate before parsing, native parser validation errors will point to character indices in the hydrated `.httpt-r` string rather than the original `.httpt` template.
 
 To solve this without bloating the parser, the *Hydrate Stage* emits a dedicated **Index Shift Map** as a sidecar artifact. This JSON file acts as a stateless, highly queryable source map for the downstream execution engine.
 
 ### The Index Shift Map
 
-By explicitly storing both the start index and the length of every substitution, the map is mathematically redundant but allows the error handler to instantly reverse-map ANTLR errors without tracking state or calculating cumulative deltas.
+By explicitly storing both the start index and the length of every substitution, the map is mathematically redundant but allows the error handler to instantly reverse-map native parser errors without tracking state or calculating cumulative deltas.
 
 ```json
 {
@@ -198,7 +198,7 @@ By explicitly storing both the start index and the length of every substitution,
 }
 ```
 
-When the execution engine catches an ANTLR syntax error (e.g., at character 100), it can simply query this map to find the overlapping `hydrated_start` and `hydrated_length` bounds, instantly tracing the failure back to the exact `original_start` block in the developer's `.httpt` file.
+When the execution engine catches a syntax error (e.g., at character 100), it can simply query this map to find the overlapping `hydrated_start` and `hydrated_length` bounds, instantly tracing the failure back to the exact `original_start` block in the developer's `.httpt` file.
 
 ## Environments & Hydration Contexts
 Because `httpt` delegates the actual network request to underlying clients, the data supplied for hydration depends on the execution environment:
@@ -284,7 +284,7 @@ Content-Type: application/octet-stream
 
 ## The Intermediate Representation (IR)
 
-Once the ANTLR Parse Stage successfully validates the hydrated `.httpt-r` string, it maps the Parse Tree into a strictly defined **Intermediate Representation (IR)**.
+Once the Parse Stage successfully validates the hydrated `.httpt-r` string, it maps the extracted HTTP components into a strictly defined **Intermediate Representation (IR)**.
 
 To ensure maximum portability across execution environments (Dart, Node.js, CLI) and to enable deterministic unit testing, the IR is defined as a standard JSON structure. This serves as the definitive contract between the *Parse Stage* and the *Execute Stage*.
 
@@ -292,7 +292,7 @@ To ensure maximum portability across execution environments (Dart, Node.js, CLI)
 
 ### IR JSON Schema
 
-The JSON object represents the fully resolved request, stripped of all ANTLR-specific parsing tokens.
+The JSON object represents the fully resolved request, stripped of all internal parsing artifacts.
 
 * **`schema-version`**: The version of the IR structure (currently `"1.0"`).
 * **`host`**: The extracted target host/authority for the request (e.g., `"api.production.internal"`). Note: The Parse Stage should extract the `Host` header (or `:authority` pseudo-header) to populate this root field.
@@ -382,7 +382,7 @@ The Parse Stage will output the following IR JSON:
 
 Defining the IR as JSON unlocks a highly decoupled testing pipeline:
 
-1.  **Parser Tests (`.httpt-r` -> `.httpt-ir`):** Feed raw HTTP strings into the ANTLR parser and assert the exact JSON output.
+1.  **Parser Tests (`.httpt-r` -> `.httpt-ir`):** Feed raw HTTP strings into the native parser and assert the exact JSON output.
 2.  **Executor Tests (`.httpt-ir` -> Network):** Feed mock IR files into the execution engine and assert that the correct `curl` arguments or `fetch` configurations are generated.
 
 Future Exploration: Response Templating
@@ -394,7 +394,7 @@ Mocking: Standing up local mock servers that serve hydrated .httpt response temp
 Asserting: Firing a real request and validating the server's output against a .httpt response template during integration testing.
 Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal pipeline changes:
 
-Grammar: The Httpr.g4 grammar must branch at the root to accept either a Request-Line or a Status-Line.
+Parser State: The native parser's Request Line evaluation must branch at the root to accept either a Request-Line or a Status-Line.
 IR Schema: The Intermediate Representation (IR) JSON must introduce a root type field (e.g., "type": "request" | "response") so the downstream Execute Stage knows how to interpret the payload.
 
 ## Static Analysis & Contract Validation
