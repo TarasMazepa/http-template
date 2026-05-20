@@ -1,8 +1,10 @@
 # I. Introduction & Philosophy
 
-**httpt** (HTTP Template) is a system for defining HTTP requests using raw HTTP message formats (RFC 9110/9112) as templates.
+**httpt** (HTTP Template) is an ecosystem for defining dynamic HTTP requests using standard, raw HTTP message formats (RFC 9110/9112).
 
-Because `httpt` targets multiple execution environments and delegates the actual network request to underlying clients (like `curl` or `fetch`), a pure string-replacement engine creates too much friction for structured data. To safely construct requests, the template syntax provides strict, context-aware encodings (handling JSON quotes, URL escaping, or raw binary streams) before parsing the payload via a custom native pipeline.
+Unlike standard string-replacement tools (which easily break when injecting dynamic variables into JSON bodies or URLs), `httpt` acts as a smart, context-aware templating layer. It provides strict functions to safely encode your data—handling JSON quotes, URL escaping, or raw binary streams—and then compiles the template into a universal Intermediate Representation (`.httpt-ir`). This IR can then be flawlessly executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
+
+Write your request exactly as it looks on the wire. Let the `httpt` pipeline handle the data serialization.
 
 ## The Format of .httpt
 
@@ -26,9 +28,6 @@ At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9
 
 ## Parsing & Execution Pipeline
 
-*(See Design Note: Line Endings in Section VII for rationale).*
-
-
 The execution of an `.httpt` file relies on a highly optimized, custom native pipeline.
 
 * **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
@@ -37,7 +36,7 @@ The execution of an `.httpt` file relies on a highly optimized, custom native pi
   * **Performance:** Achieves O(1) memory overhead since it does not build intermediate data structures for the template logic.
   * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `readCursor` and a `writeCursor` whenever a `{{ function param }}` tag is resolved.
 * **Parse & Validate Stage Mechanism (Custom Native Parser)** / Validates / the hydrated `.httpt-r` string or stream using a fast, native parser designed for a strict subset of HTTP.
-  * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body.
+  * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body. *(See Design Note: Line Endings in Section VII for rationale).*
   * **Head Parsing:** The Request Line and Headers are parsed using fast, native string splitting. The Request Line is split by spaces, and headers are split by the first colon (`:`).
   * **O(1) Body Handoff:** The parser stops reading exactly at the double newline boundary. The unread remainder of the stream (the Body) is handed off directly to the downstream execution client without being buffered or mapped into memory.
   * **Error Handling:** Syntax errors (like malformed headers) caught during this native string splitting must still query the **Index Shift Map** to point the error back to the exact character index in the user's original `.httpt` file.
