@@ -1,0 +1,4 @@
+PUT /api/stream HTTP/1.1
+Host: api.example.com
+Content-Type: video/mp4
+:httpt-body-type: provided
