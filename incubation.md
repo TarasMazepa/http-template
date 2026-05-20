@@ -1,10 +1,10 @@
 # I. Introduction & Philosophy
 
-**httpt** (HTTP Template) is an ecosystem for defining dynamic HTTP requests using standard, raw HTTP message formats (RFC 9110/9112).
+**HTTP Template** is an experimental concept and incubation project for defining dynamic HTTP requests using standard, raw HTTP message formats (RFC 9110/9112).
 
-Unlike standard string-replacement tools (which easily break when injecting dynamic variables into JSON bodies or URLs), `httpt` acts as a smart, context-aware templating layer. It provides strict functions to safely encode your data—handling JSON quotes, URL escaping, or raw binary streams—and then compiles the template into a universal Intermediate Representation (`.httpt-ir`). This IR can then be flawlessly executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
+The vision for HTTP Template is to act as a smart, context-aware layer over raw HTTP. Unlike standard string-replacement tools that can easily break JSON bodies or URLs, the goal is to provide strict functions to safely encode data (handling JSON quotes, URL escaping, etc.) and compile the template into an Intermediate Representation (`.httpt-ir`).
 
-Write your request exactly as it looks on the wire. Let the `httpt` pipeline handle the data serialization.
+This document serves as the architectural blueprint and design specification for building out that ecosystem.
 
 ## The Format of .httpt
 
@@ -46,7 +46,7 @@ The execution of an `.httpt` file relies on a highly optimized, custom native pi
 
 ## Templating Syntax
 
-Rather than providing implicit context-aware escaping, `httpt` prioritizes explicit user control. The syntax is inspired by Handlebars/Nunjucks but is strictly function-based: `{{ function parameter_name }}`. Here, `parameter_name` refers to the key in the data context, not the literal value.
+Rather than providing implicit context-aware escaping, HTTP Template prioritizes explicit user control. The syntax is inspired by Handlebars/Nunjucks but is strictly function-based: `{{ function parameter_name }}`. Here, `parameter_name` refers to the key in the data context, not the literal value.
 
 **Note:** The default syntax without a function (e.g., `{{ parameter_name }}`) is invalid. Users *must* explicitly define how the data enters the HTTP stream. This ensures that the hydration state machine can catch malformed templates immediately and forces developer explicitness.
 
@@ -114,7 +114,7 @@ grant_type=client_credentials&client_id={{ url client_id }}&client_secret={{ url
 ```
 
 #### Case 4: Multipart Form Data
-This is the most complex "raw HTTP" structure because it requires the user to manually define boundary markers. `httpt` shines here by allowing binary streams to be injected directly between text boundaries using `{{ file-as-is }}`.
+This is the most complex "raw HTTP" structure because it requires the user to manually define boundary markers. HTTP Template shines here by allowing binary streams to be injected directly between text boundaries using `{{ file-as-is }}`.
 
 ```http
 POST /api/uploads HTTP/1.1
@@ -313,7 +313,7 @@ The Parse Stage will output the following IR JSON:
 
 ## Environments & Hydration Contexts
 
-Because `httpt` delegates the actual network request to underlying clients, the data supplied for hydration depends on the execution environment:
+Because HTTP Template delegates the actual network request to underlying clients, the data supplied for hydration depends on the execution environment:
 
 * **Command Line (CLI):** Operates primarily on files. You provide a `.httpt` file and a data source (e.g., via `--data payload.json`, env vars, or stdin). The CLI hydrates it into a `.httpt-r` string, parses it into the IR, and passes it directly to a standard client like `curl`.
 * **JavaScript / Dart SDK:** Operates entirely in memory. You pass the template as a raw string directly to the execution function, along with a native dictionary/map of your data. The library hydrates and parses it in-memory, executing the request using standard APIs like `fetch` or `dart:io HttpClient`.
@@ -384,9 +384,9 @@ GET /api/v1/search HTTP/1.1
 Host: api.example.com
 ```
 
-In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the `httpt` *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the pipeline needs a way to resolve the scheme.
+In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the HTTP Template *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the pipeline needs a way to resolve the scheme.
 
-To solve this, `httpt` approaches the problem in two phases:
+To solve this, HTTP Template approaches the problem in two phases:
 
 ### 1. Current Solution: Out-of-Band Configuration
 To preserve the pristine, RFC-compliant nature of `.httpt` files, the template itself remains completely ignorant of the transport protocol. The scheme and port are pushed out-of-band and provided by the execution environment.
@@ -406,7 +406,7 @@ During the design phase, we evaluated and rejected several other options to ensu
 
 ### Design Note: Line Endings (\n vs \r\n)
 
-While the official HTTP specification (RFC 9110/9112) strictly requires `CRLF` (`\r\n`) for line terminators, `httpt` relaxes this requirement for templates.
+While the official HTTP specification (RFC 9110/9112) strictly requires `CRLF` (`\r\n`) for line terminators, HTTP Template relaxes this requirement for templates.
 
 Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `curl`, `fetch`) rather than being streamed directly to a raw TCP socket, the parser fully supports standard Unix `LF` (`\n`) line endings. This allows developers to write and format `.httpt` files naturally in any modern text editor, relying on the underlying HTTP client to enforce standard wire-level formatting during execution. If direct socket execution is supported in the future, the **Emit Stage** can be updated to normalize line endings automatically.
 
@@ -442,7 +442,7 @@ When the execution engine catches a syntax error (e.g., at character 100), it ca
 
 ### Future Enhancement: Pseudo-Headers
 
-To eventually allow templates to be self-contained without relying on external configuration, `httpt` plans to support HTTP/2-style **pseudo-headers**.
+To eventually allow templates to be self-contained without relying on external configuration, HTTP Template plans to support HTTP/2-style **pseudo-headers**.
 
 ```http
 GET /api/v1/search HTTP/1.1
@@ -459,9 +459,9 @@ This acts as a "bogus" header within the template. The *Execute Stage* will read
 
 ### Future Exploration: Response Templating
 
-While httpt is currently designed around HTTP requests, the underlying RFC 9112 structure for HTTP responses is nearly identical (differing only by replacing the Request-Line with a Status-Line).
+While HTTP Template is currently designed around HTTP requests, the underlying RFC 9112 structure for HTTP responses is nearly identical (differing only by replacing the Request-Line with a Status-Line).
 
-Expanding httpt to template responses unlocks two powerful workflows:
+Expanding HTTP Template to template responses unlocks two powerful workflows:
 
 Mocking: Standing up local mock servers that serve hydrated .httpt response templates.
 Asserting: Firing a real request and validating the server's output against a .httpt response template during integration testing.
@@ -469,3 +469,9 @@ Because the Hydrate Stage is agnostic to whether it is processing a request or a
 
 Parser State: The native parser's Request Line evaluation must branch at the root to accept either a Request-Line or a Status-Line.
 IR Schema: The Intermediate Representation (IR) JSON must introduce a root type field (e.g., "type": "request" | "response") so the downstream Execute Stage knows how to interpret the payload.
+
+## Roadmap & Contributing
+
+HTTP Template is currently in active incubation. The overarching goal is to build out the parsing and execution pipeline so that `.httpt-ir` files can eventually be executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
+
+If you are interested in building out execution clients, contributing to the native parser, or writing static analysis tooling, please refer to the schemas defined in this document.
