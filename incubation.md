@@ -147,15 +147,13 @@ To ensure maximum portability across execution environments (Dart, Node.js, CLI)
 
 ## Bridging the Representation Gap
 
-Because the hydrated `.httpt-r` file is a flat text stream, the Custom Native Parser needs a mechanism to determine the strict JSON `body.type` (e.g., distinguishing between a raw string and a Base64 encoded binary file) without relying on fragile sniffing.
+Because the hydrated `.httpt-r` and `.httpt-ir` files are flat text streams, the parser needs a mechanism to determine the body type without content-sniffing. This is handled via the `:httpt-body-type` pseudo-header:
 
-To solve this, the Hydrate stage injects a custom pseudo-header into the `.httpt-r` output: `:httpt-body-type`.
+* `:httpt-body-type: provided`: Signals that the body content is handled as an in-memory reference (e.g., stream, Blob, or Buffer). This avoids serialization and disk I/O for large payloads or live streams. The body is omitted from the intermediate file contents.
+* `:httpt-body-type: base64`: Signals that the binary data is embedded directly in the intermediate text files as a Base64-encoded string. This ensures the data persists in a text-based format where streaming is not feasible.
+* `:httpt-body-type: text` (Default): Signals that the body is a standard UTF-8 string. This is the default if no pseudo-header is present.
 
-* If the template uses `{{ file-as-is ... }}`, the Hydrator injects `:httpt-body-type: provided` and omits the body entirely from the `.httpt-r` stream.
-* If the template uses `{{ file-as-base64 ... }}`, the Hydrator injects `:httpt-body-type: base64` and writes the encoded string into the `.httpt-r` body.
-* For standard `text` or `json` payloads, the pseudo-header is optional (the parser will default to `text`, or infer `json` from the `Content-Type` header).
-
-**CRITICAL:** The Parse Stage consumes this pseudo-header to build the `.httpt-ir` JSON, but it **MUST strictly remove** the `:httpt-body-type` header from the final IR output. It is an internal parsing artifact and must never be handed off to the Execute stage or sent over the network.
+**Implementation Note:** The parser consumes this pseudo-header to set the IR `body.type` and **MUST strictly remove it** from the final header set. It is an internal artifact and is never part of the executed HTTP request.
 
 ## IR JSON Schema
 
