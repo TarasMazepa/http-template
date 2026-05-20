@@ -1,0 +1,14 @@
+{
+  "schema-version": "1.0",
+  "method": "POST",
+  "host": "api.example.com",
+  "uri": "/api/upload",
+  "version": "HTTP/1.1",
+  "headers": [
+    { "name": "Content-Type", "value": "application/octet-stream" }
+  ],
+  "body": {
+    "type": "base64",
+    "content": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+  }
+}
