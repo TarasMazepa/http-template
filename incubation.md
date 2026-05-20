@@ -1,10 +1,12 @@
 # I. Introduction & Philosophy
 
-**HTTP Template** is an experimental concept and incubation project for defining dynamic HTTP requests using standard, raw HTTP message formats (RFC 9110/9112).
+**HTTP Template** is a templating tool for defining HTTP requests in raw HTTP format (RFC 9110/9112).
 
-The vision for HTTP Template is to act as a smart, context-aware layer over raw HTTP. Unlike standard string-replacement tools that can easily break JSON bodies or URLs, the goal is to provide strict functions to safely encode data (handling JSON quotes, URL escaping, etc.) and compile the template into an Intermediate Representation (`.httpt-ir`).
+At its core, it performs string replacement on raw HTTP text. To handle the data formatting required for valid HTTP requests, it provides a set of explicit functions to encode variables (e.g., JSON escaping, URL encoding, or binary file streaming).
 
-This document serves as the architectural blueprint and design specification for building out that ecosystem.
+The tool consumes a template, hydrates it using a data context, and outputs a structured JSON Intermediate Representation (`.httpt-ir`). This IR can then be used by various execution clients to perform the actual network request.
+
+This document serves as the technical specification for the templating syntax, the parsing workflow, and the IR schema.
 
 ## The Format of .httpt
 
@@ -24,18 +26,18 @@ At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9
 [Optional Body]
 ```
 
-# II. The Parsing & Execution Pipeline
+# II. The Parsing & Execution Processing Workflow
 
-## Parsing & Execution Pipeline
+## Parsing & Execution Processing Workflow
 
-The execution of an `.httpt` file relies on a highly optimized, custom native pipeline.
+The execution of an `.httpt` file relies on a highly optimized, custom native processing workflow.
 
 * **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
   * **Input:** Consumes either a file stream or an in-memory string, reading it character-by-character.
   * **Output:** Writes in-place, outputting either directly to a hydrated `.httpt-r` file ("Resolved") or streaming directly into the downstream custom native parser.
   * **Performance:** Achieves O(1) memory overhead since it does not build intermediate data structures for the template logic.
   * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `readCursor` and a `writeCursor` whenever a `{{ function param }}` tag is resolved.
-* **Parse & Validate Stage Mechanism (Custom Native Parser)** / Validates / the hydrated `.httpt-r` string or stream using a fast, native parser designed for a strict subset of HTTP.
+* **Parse & Verify Stage Mechanism (Custom Native Parser)** / Verifies / the hydrated `.httpt-r` string or stream using a fast, native parser designed for a strict subset of HTTP.
   * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body. *(See Design Note: Line Endings in Section VII for rationale).*
   * **Head Parsing:** The Request Line and Headers are parsed using fast, native string splitting. The Request Line is split by spaces, and headers are split by the first colon (`:`).
   * **O(1) Body Handoff:** The parser stops reading exactly at the double newline boundary. The unread remainder of the stream (the Body) is handed off directly to the downstream execution client without being buffered or mapped into memory.
@@ -137,7 +139,7 @@ Content-Type: application/pdf
 
 ## The Intermediate Representation (IR)
 
-Once the Parse Stage successfully validates the hydrated `.httpt-r` string, it maps the extracted HTTP components into a strictly defined **Intermediate Representation (IR)**.
+Once the Parse Stage successfully verifies the hydrated `.httpt-r` string, it maps the extracted HTTP components into a strictly defined **Intermediate Representation (IR)**.
 
 To ensure maximum portability across execution environments (Dart, Node.js, CLI) and to enable deterministic unit testing, the IR is defined as a standard JSON structure. This serves as the definitive contract between the *Parse Stage* and the *Execute Stage*.
 
@@ -330,25 +332,25 @@ Because HTTP Template delegates the actual network request to underlying clients
 * **Command Line (CLI):** Operates primarily on files. You provide a `.httpt` file and a data source (e.g., via `--data payload.json`, env vars, or stdin). The CLI hydrates it into a `.httpt-r` string, parses it into the IR, and passes it directly to a standard client like `curl`.
 * **JavaScript / Dart SDK:** Operates entirely in memory. You pass the template as a raw string directly to the execution function, along with a native dictionary/map of your data. The library hydrates and parses it in-memory, executing the request using standard APIs like `fetch` or `dart:io HttpClient`.
 
-## Static Analysis & Contract Validation
+## Static Analysis & Contract Verification
 
-Because `.httpt` templates are often loaded dynamically at runtime, the ecosystem provides a lightweight validation library to statically analyze templates before they are hydrated or executed. This ensures that templates are syntactically sound and fulfill strict data contracts.
+Because `.httpt` templates are often loaded dynamically at runtime, the ecosystem provides a lightweight verification library to statically analyze templates before they are hydrated or executed. This ensures that templates are syntactically sound and fulfill strict data contracts.
 
-The validation pipeline performs two distinct checks:
+The verification processing workflow performs two distinct checks:
 
-### 1. Structural/Syntax Validation
-The validator parses the raw `.httpt` string to ensure all templating boundaries are properly formed.
+### 1. Structural/Syntax Verification
+The verifier parses the raw `.httpt` string to ensure all templating boundaries are properly formed.
 * **Checks:** Ensures there are no unclosed brackets (e.g., `{{ raw missing_close `), unrecognized built-in functions, or illegally nested tags.
 * **Failure State:** Throws a `TemplateSyntaxError` indicating the exact line and character index of the malformed syntax.
 
-### 2. Data Contract Validation
-Developers can enforce a strict "Data Contract" by providing an array of expected argument keys. The validator scans the template, extracts every unique parameter name defined inside the `{{ }}` blocks, and performs a strict set-equivalence check against the expected array.
+### 2. Data Contract Verification
+Developers can enforce a strict "Data Contract" by providing an array of expected argument keys. The verifier scans the template, extracts every unique parameter name defined inside the `{{ }}` blocks, and performs a strict set-equivalence check against the expected array.
 
 * **Missing Arguments:** If the template requires a variable (e.g., `{{ url user_id }}`) that is *not* in the expected contract, it throws a `MissingArgumentError`.
 * **Extra Arguments:** If the expected contract provides a variable (e.g., `"api_key"`) that the template *never uses*, it throws an `UnexpectedArgumentError` (preventing unused or deprecated data from lingering in execution contexts).
 
 ### Example SDK Usage
-The validator is designed to be run during initialization or CI/CD pipelines, completely bypassing the Hydrate and Parse stages.
+The verifier is designed to be run during initialization or CI/CD pipelines, completely bypassing the Hydrate and Parse stages.
 
 ```javascript
 import { validateContract } from '@httpt/core';
@@ -376,9 +378,9 @@ try {
 }
 ```
 
-## The Testing Pipeline
+## The Testing Processing Workflow
 
-Defining the IR as JSON unlocks a highly decoupled testing pipeline:
+Defining the IR as JSON unlocks a highly decoupled testing processing workflow:
 
 1.  **Parser Tests (`.httpt-r` -> `.httpt-ir`):** Feed raw HTTP strings into the native parser and assert the exact JSON output.
 2.  **Executor Tests (`.httpt-ir` -> Network):** Feed mock IR files into the execution engine and assert that the correct `curl` arguments or `fetch` configurations are generated.
@@ -396,7 +398,7 @@ GET /api/v1/search HTTP/1.1
 Host: api.example.com
 ```
 
-In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the HTTP Template *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the pipeline needs a way to resolve the scheme.
+In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the HTTP Template *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the processing workflow needs a way to resolve the scheme.
 
 To solve this, HTTP Template approaches the problem in two phases:
 
@@ -406,7 +408,7 @@ To preserve the pristine, RFC-compliant nature of `.httpt` files, the template i
 * **CLI Environment:** Configured via flags (e.g., `httpt run --scheme https submit.httpt`).
 * **SDK Environment (Dart/JS):** Passed as configuration objects (e.g., `httpt.execute(template, data, { scheme: 'https' })`).
 
-This keeps the native parser lightweight and strictly focused on validating standard HTTP text without needing complex URI scheme resolution.
+This keeps the native parser lightweight and strictly focused on verifying standard HTTP text without needing complex URI scheme resolution.
 
 #### Alternative Approaches Considered
 
@@ -414,7 +416,7 @@ During the design phase, we evaluated and rejected several other options to ensu
 
 * **Absolute URIs (`GET https://api.example.com/v1 HTTP/1.1`):** While technically permitted by RFC 9110/9112 (mostly for proxies), it clutters the request line and makes the required `Host` header partially redundant.
 * **Port Inference from `Host`:** Guessing the scheme based on the port (e.g., assuming `:443` means `https`) is brittle. It forces the executor to default to `https` when omitted, and breaks entirely if an API runs HTTPS on a non-standard port like `8443`.
-* **YAML Frontmatter:** Injecting a metadata block at the top of the file was discarded because it breaks the "it's just a raw HTTP string" philosophy and complicates the parsing pipeline.
+* **YAML Frontmatter:** Injecting a metadata block at the top of the file was discarded because it breaks the "it's just a raw HTTP string" philosophy and complicates the parsing processing workflow.
 
 ### Design Note: Line Endings (\n vs \r\n)
 
@@ -424,7 +426,7 @@ Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `
 
 ### Design Note: Source Mapping Trade-off
 
-Because we hydrate before parsing, native parser validation errors will point to character indices in the hydrated `.httpt-r` string rather than the original `.httpt` template.
+Because we hydrate before parsing, native parser verification errors will point to character indices in the hydrated `.httpt-r` string rather than the original `.httpt` template.
 
 To solve this without bloating the parser, the *Hydrate Stage* emits a dedicated **Index Shift Map** as a sidecar artifact. This JSON file acts as a stateless, highly queryable source map for the downstream execution engine.
 
@@ -476,14 +478,14 @@ While HTTP Template is currently designed around HTTP requests, the underlying R
 Expanding HTTP Template to template responses unlocks two powerful workflows:
 
 Mocking: Standing up local mock servers that serve hydrated .httpt response templates.
-Asserting: Firing a real request and validating the server's output against a .httpt response template during integration testing.
-Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal pipeline changes:
+Asserting: Firing a real request and verifying the server's output against a .httpt response template during integration testing.
+Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal processing workflow changes:
 
 Parser State: The native parser's Request Line evaluation must branch at the root to accept either a Request-Line or a Status-Line.
 IR Schema: The Intermediate Representation (IR) JSON must introduce a root type field (e.g., "type": "request" | "response") so the downstream Execute Stage knows how to interpret the payload.
 
 ## Roadmap & Contributing
 
-HTTP Template is currently in active incubation. The overarching goal is to build out the parsing and execution pipeline so that `.httpt-ir` files can eventually be executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
+HTTP Template is currently in active incubation. The overarching goal is to build out the parsing and execution processing workflow so that `.httpt-ir` files can eventually be executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
 
 If you are interested in building out execution clients, contributing to the native parser, or writing static analysis tooling, please refer to the schemas defined in this document.
