@@ -26,23 +26,23 @@ At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9
 [Optional Body]
 ```
 
-# II. The Parsing & Execution Processing Workflow
+# II. The Parsing & Execution Processing steps
 
-## Parsing & Execution Processing Workflow
+## Parsing & Execution Processing steps
 
-The execution of an `.httpt` file consists of three stages: Hydrate, Parse, and Execute.
+The execution of an .httpt file consists of three stages: Hydrate, Parse, and Execute.
 
-* **Hydrate Stage (Single-Pass State Machine):** Implements hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
+* **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
   * **Input:** Consumes either a file stream or an in-memory string, reading it character-by-character.
   * **Output:** Writes in-place, outputting either directly to a hydrated `.httpt-r` file ("Resolved") or streaming directly into the downstream parser.
   * **Performance:** Achieves O(1) memory overhead since it does not build intermediate data structures for the template logic.
-  * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `readCursor` and a `writeCursor` whenever a `{{ parameter | function-name }}` tag is resolved.
-* **Parse & Verify Stage (Parser):** Verifies the hydrated `.httpt-r` string or stream using a fast parser designed for a strict subset of HTTP.
+  * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `read-cursor` and a `write-cursor` whenever a `{{ parameter | function-name }}` tag is resolved.
+* **Parse & Verify Stage Mechanism (Parser)** / Verifies / the hydrated `.httpt-r` string or stream using a fast parser designed for a strict subset of HTTP.
   * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body. *(See Design Note: Line Endings in Section VII for rationale).*
   * **Head Parsing:** The Request Line and Headers are parsed using fast, string splitting. The Request Line is split by spaces, and headers are split by the first colon (`:`).
   * **O(1) Body Handoff:** The parser stops reading exactly at the double newline boundary. The unread remainder of the stream (the Body) is handed off directly to the downstream execution client without being buffered or mapped into memory.
   * **Error Handling:** Syntax errors (like malformed headers) caught during this string splitting must still query the **Index Shift Map** to point the error back to the exact character index in the user's original `.httpt` file.
-* **Execute Stage:** Hands off the fully resolved request to the execution client (e.g., `fetch`, `curl`) if the parsed request is valid.
+* **Execute Stage Mechanism** / Hands off / the fully resolved request to the execution client (e.g., `fetch`, `curl`) if the parsed request is valid.
 
 # III. The Source Template (.httpt)
 
@@ -175,7 +175,7 @@ The JSON object represents the fully resolved request, stripped of all internal 
   - `type`: Indicates how the execution client should handle the content. Strict allowed values:
     - `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
     - `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
-    - `"json"`: A JSON object or array. The executor stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
+    - `"json"`: A JSON object or array. The executor natively stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
     - `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
   - `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
 
@@ -340,7 +340,7 @@ Because HTTP Template delegates the actual network request to underlying clients
 
 Because `.httpt` templates are often loaded dynamically at runtime, the ecosystem provides a lightweight verification library to statically analyze templates before they are hydrated or executed. This ensures that templates are syntactically sound and fulfill strict data contracts.
 
-The verification processing workflow performs two distinct checks:
+The verification processing steps performs two distinct checks:
 
 ### 1. Structural/Syntax Verification
 The verifier parses the raw `.httpt` string to ensure all templating boundaries are properly formed.
@@ -382,9 +382,9 @@ try {
 }
 ```
 
-## The Testing Processing Workflow
+## The Testing Processing steps
 
-Defining the IR as JSON unlocks a highly decoupled testing processing workflow:
+Defining the IR as JSON unlocks a highly decoupled testing processing steps:
 
 1.  **Parser Tests (`.httpt-r` -> `.httpt-ir`):** Feed raw HTTP strings into the parser and assert the exact JSON output.
 2.  **Executor Tests (`.httpt-ir` -> Network):** Feed mock IR files into the execution engine and assert that the correct `curl` arguments or `fetch` configurations are generated.
@@ -402,7 +402,7 @@ GET /api/v1/search HTTP/1.1
 Host: api.example.com
 ```
 
-In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the HTTP Template *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the processing workflow needs a way to resolve the scheme.
+In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the HTTP Template *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the processing steps needs a way to resolve the scheme.
 
 To solve this, HTTP Template approaches the problem in two phases:
 
@@ -420,7 +420,7 @@ During the design phase, we evaluated and rejected several other options to ensu
 
 * **Absolute URIs (`GET https://api.example.com/v1 HTTP/1.1`):** While technically permitted by RFC 9110/9112 (mostly for proxies), it clutters the request line and makes the required `Host` header partially redundant.
 * **Port Inference from `Host`:** Guessing the scheme based on the port (e.g., assuming `:443` means `https`) is brittle. It forces the executor to default to `https` when omitted, and breaks entirely if an API runs HTTPS on a non-standard port like `8443`.
-* **YAML Frontmatter:** Injecting a metadata block at the top of the file was discarded because it breaks the "it's just a raw HTTP string" philosophy and complicates the parsing processing workflow.
+* **YAML Frontmatter:** Injecting a metadata block at the top of the file was discarded because it breaks the "it's just a raw HTTP string" philosophy and complicates the parsing processing steps.
 
 ### Design Note: Line Endings (\n vs \r\n)
 
@@ -458,6 +458,23 @@ When the execution engine catches a syntax error (e.g., at character 100), it ca
 
 ## Future Explorations
 
+### Future Enhancement: Pseudo-Headers
+
+To eventually allow templates to be self-contained without relying on external configuration, HTTP Template plans to support HTTP/2-style **pseudo-headers**.
+
+```http
+GET /api/v1/search HTTP/1.1
+:scheme: https
+Host: api.example.com
+```
+
+This acts as a "bogus" header within the template. The *Execute Stage* will read the pseudo-header, configure the transport layer accordingly, and then strip it out completely before handing the final sanitized payload to the underlying client.
+
+**Implementation Requirements:**
+* **Parser Rules:** The parser's header-splitting logic will need to intentionally relax the strict RFC token definitions to allow a leading colon (`:`) for the first few lines, effectively creating a hybrid HTTP/1.1 and HTTP/2 parsing model.
+* **Strict Ordering:** The parser (or the Execute Stage) must enforce the rule that all pseudo-headers must appear *before* any regular headers.
+* **Execution Stripping:** The Execute Stage must extract these pseudo-headers to configure the transport layer, and then completely strip them from the final header map before handing the payload off to underlying clients (like `fetch` or `curl`) to prevent `TypeError`s.
+
 ### Future Exploration: Response Templating
 
 While HTTP Template is currently designed around HTTP requests, the underlying RFC 9112 structure for HTTP responses is nearly identical (differing only by replacing the Request-Line with a Status-Line).
@@ -466,13 +483,13 @@ Expanding HTTP Template to template responses unlocks two powerful workflows:
 
 Mocking: Standing up local mock servers that serve hydrated .httpt response templates.
 Asserting: Firing a real request and verifying the server's output against a .httpt response template during integration testing.
-Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal processing workflow changes:
+Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal processing steps changes:
 
 Parser State: The parser's Request Line evaluation must branch at the root to accept either a Request-Line or a Status-Line.
 IR Schema: The Intermediate Representation (IR) JSON must introduce a root type field (e.g., "type": "request" | "response") so the downstream Execute Stage knows how to interpret the payload.
 
 ## Roadmap & Contributing
 
-HTTP Template is currently in active incubation. The overarching goal is to build out the parsing and execution processing workflow so that `.httpt-ir` files can eventually be executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
+HTTP Template is currently in active incubation. The overarching goal is to build out the parsing and execution processing steps so that `.httpt-ir` files can eventually be executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
 
 If you are interested in building out execution clients, contributing to the parser, or writing static analysis tooling, please refer to the schemas defined in this document.
