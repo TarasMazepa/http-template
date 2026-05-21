@@ -434,7 +434,25 @@ Because we hydrate before parsing, parser verification errors will point to char
 
 To solve this without bloating the parser, the *Hydrate Stage* emits a dedicated **Index Shift Map** as a sidecar artifact. This JSON file acts as a stateless, highly queryable source map for the downstream execution engine.
 
-See the 'Source Mapping' subsection in the Processing Workflow (Section II) for the Index Shift Map implementation and rationale.
+#### The Index Shift Map
+
+By explicitly storing both the start index and the length of every substitution, the map is mathematically redundant but allows the error handler to instantly reverse-map parser errors without tracking state or calculating cumulative deltas.
+
+```json
+{
+  "schema-version": "1.0",
+  "substitutions": [
+    {
+      "original-start": 42,       // Where the {{ tag }} started
+      "original-length": 15,      // The length of the {{ tag }}
+      "hydrated-start": 42,       // Where the injected string starts
+      "hydrated-length": 81       // The length of the injected string
+    }
+  ]
+}
+```
+
+When the execution engine catches a syntax error (e.g., at character 100), it can simply query this map to find the overlapping `hydrated-start` and `hydrated-length` bounds, instantly tracing the failure back to the exact `original-start` block in the developer's `.httpt` file.
 
 # VIII. Future Explorations
 
