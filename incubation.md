@@ -10,7 +10,7 @@ This document serves as the technical specification for the templating syntax, t
 
 ## The Format of .httpt
 
-At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9110/9112). The template must structurally represent a valid HTTP request *before* and *after* hydration. The file is always divided into three distinct parts:
+At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9110/9112). While the source template (`.httpt`) may contain placeholders that do not conform to HTTP syntax, the *hydrated result* (`.httpt-r`) must structurally represent a valid HTTP request. The file is always divided into three distinct parts:
 
 1. **The Request Line:** Defines the method, the target URI (which can be templated), and the HTTP version.
 2. **The Headers:** A list of key-value pairs.
