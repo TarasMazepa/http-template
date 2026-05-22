@@ -1,0 +1,12 @@
+{
+  "schema-version": "1.0",
+  "method": "GET",
+  "host": "example.com",
+  "uri": "/search",
+  "version": "HTTP/1.1",
+  "headers": [],
+  "body": {
+    "type": "text",
+    "content": "body-content"
+  }
+}

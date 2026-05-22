@@ -1,0 +1,16 @@
+{
+  "schema-version": "1.0",
+  "method": "POST",
+  "host": "api.example.com",
+  "uri": "/json-native",
+  "version": "HTTP/1.1",
+  "headers": [],
+  "body": {
+    "type": "json",
+    "content": {
+      "id": 123,
+      "enabled": true,
+      "tags": ["test", "native"]
+    }
+  }
+}
