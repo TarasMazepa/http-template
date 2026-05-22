@@ -1,0 +1,5 @@
+POST /text-endpoint HTTP/1.1
+Host: api.example.com
+:httpt-body-type: text
+
+This is an explicit text body.
