@@ -85,7 +85,7 @@ These functions instruct the execution engine how to resolve a local file path i
 HTTP Template supports common HTTP request patterns through explicit function-based variable substitution.
 
 #### Case 1: GET/DELETE
-Standard requests without a body pass dynamic data via query parameters. Use the `{{ url }}` function to ensure parameters are correctly percent-encoded.
+Standard requests without a body pass dynamic data via query parameters. Use the `{{ parameter | url }}` function to ensure parameters are correctly percent-encoded.
 
 ```http
 GET /api/v1/search?q={{ search-term | url }}&limit={{ limit-count | raw }} HTTP/1.1
@@ -97,7 +97,7 @@ Accept: application/json
 *(Note the trailing blank line to indicate the end of the headers, even when there is no body).*
 
 #### Case 2: Structured Payloads (JSON/XML)
-To send structured data, define the `Content-Type` header and use `{{ json-* }}` functions to format the request body. The execution client automatically calculates the `Content-Length`.
+To send structured data, define the `Content-Type` header and use `{{ parameter | json-* }}` functions to format the request body. The execution client automatically calculates the `Content-Length`.
 
 ```http
 POST /v1/webhooks HTTP/1.1
@@ -111,7 +111,7 @@ Content-Type: application/json
 ```
 
 #### Case 3: Form URL-Encoded
-For form submissions, set the `Content-Type` to `application/x-www-form-urlencoded` and use `{{ url }}` for all form field values.
+For form submissions, set the `Content-Type` to `application/x-www-form-urlencoded` and use `{{ parameter | url }}` for all form field values.
 
 ```http
 POST /oauth/token HTTP/1.1
@@ -122,7 +122,7 @@ grant_type=client_credentials&client_id={{ client-id | url }}&client_secret={{ s
 ```
 
 #### Case 4: Multipart Form Data
-For file uploads, set the `Content-Type` to `multipart/form-data` and include a `boundary` definition. Use `{{ file-as-is }}` to inject binary data into specific body parts.
+For file uploads, set the `Content-Type` to `multipart/form-data` and include a `boundary` definition. Use `{{ parameter | file-as-is }}` to inject binary data into specific body parts.
 
 ```http
 POST /api/uploads HTTP/1.1
@@ -344,14 +344,14 @@ The verification Processing Workflow performs two distinct checks:
 
 ### 1. Structural/Syntax Verification
 The verifier parses the raw `.httpt` string to ensure all templating boundaries are properly formed.
-* **Checks:** Ensures there are no unclosed brackets (e.g., `{{ missing-close | raw `), unrecognized built-in functions, or illegally nested tags.
-* **Failure State:** Throws a `TemplateSyntaxError` indicating the exact line and character index of the malformed syntax.
+  * **Checks:** Ensures there are no unclosed brackets (e.g., `{{ missing-close | raw }}`), unrecognized built-in functions, or illegally nested tags.
+  * **Failure State:** Throws a `TemplateSyntaxError` indicating the exact line and character index of the malformed syntax.
 
 ### 2. Data Contract Verification
 Developers can enforce a strict "Data Contract" by providing an array of expected argument keys. The verifier scans the template, extracts every unique parameter name defined inside the `{{ }}` blocks, and performs a strict set-equivalence check against the expected array.
 
-* **Missing Arguments:** If the template requires a variable (e.g., `{{ user-id | url }}`) that is *not* in the expected contract, it throws a `MissingArgumentError`.
-* **Extra Arguments:** If the expected contract provides a variable (e.g., `"api-key"`) that the template *never uses*, it throws an `UnexpectedArgumentError` (preventing unused or deprecated data from lingering in execution contexts).
+  * **Missing Arguments:** If the template requires a variable (e.g., `{{ user-id | url }}`) that is *not* in the expected contract, it throws a `MissingArgumentError`.
+  * **Extra Arguments:** If the expected contract provides a variable (e.g., `"api-key"`) that the template *never uses*, it throws an `UnexpectedArgumentError` (preventing unused or deprecated data from lingering in execution contexts).
 
 ### Example SDK Usage
 The verifier is designed to be run during initialization or CI/CD pipelines, completely bypassing the Hydrate and Parse stages.
@@ -430,11 +430,8 @@ Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `
 
 ### Design Note: Source Mapping Trade-off
 
-Because we hydrate before parsing, parser verification errors will point to character indices in the hydrated `.httpt-r` string rather than the original `.httpt` template.
-
-To solve this without bloating the parser, the *Hydrate Stage* emits a dedicated **Index Shift Map** as a sidecar artifact. This JSON file acts as a stateless, highly queryable source map for the downstream execution engine.
-
 See the 'Source Mapping' subsection in the Processing Workflow (Section II) for the Index Shift Map implementation and rationale.
+
 
 # VIII. Future Explorations
 
