@@ -30,47 +30,52 @@ At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9
 
 ## Parsing & Execution Processing Workflow
 
-The execution of an `.httpt` file consists of three stages: Hydrate, Parse, and Execute.
+The execution of an .httpt file consists of three stages: Hydrate, Parse, and Execute.
 
-* **Hydrate Stage (Single-Pass State Machine):** Implements hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
+* **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
   * **Input:** Consumes either a file stream or an in-memory string, reading it character-by-character.
   * **Output:** Writes in-place, outputting either directly to a hydrated `.httpt-r` file ("Resolved") or streaming directly into the downstream parser.
   * **Performance:** Achieves O(1) memory overhead since it does not build intermediate data structures for the template logic.
-  * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `readCursor` and a `writeCursor` whenever a `{{ function param }}` tag is resolved.
-* **Parse & Verify Stage (Parser):** Verifies the hydrated `.httpt-r` string or stream using a fast parser designed for a strict subset of HTTP.
+  * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `read-cursor` and a `write-cursor` whenever a `{{ parameter | function-name }}` tag is resolved.
+* **Parse & Verify Stage Mechanism (Parser)** / Verifies / the hydrated `.httpt-r` string or stream using a fast parser designed for a strict subset of HTTP.
   * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body. *(See Design Note: Line Endings in Section VII for rationale).*
   * **Head Parsing:** The Request Line and Headers are parsed using fast, string splitting. The Request Line is split by spaces, and headers are split by the first colon (`:`).
   * **O(1) Body Handoff:** The parser stops reading exactly at the double newline boundary. The unread remainder of the stream (the Body) is handed off directly to the downstream execution client without being buffered or mapped into memory.
   * **Error Handling:** Syntax errors (like malformed headers) caught during this string splitting must still query the **Index Shift Map** to point the error back to the exact character index in the user's original `.httpt` file.
-* **Execute Stage:** Hands off the fully resolved request to the execution client (e.g., `fetch`, `curl`) if the parsed request is valid.
+* **Execute Stage Mechanism** / Hands off / the fully resolved request to the execution client (e.g., `fetch`, `curl`) if the parsed request is valid.
 
 # III. The Source Template (.httpt)
 
 ## Templating Syntax
 
-Rather than providing implicit context-aware escaping, HTTP Template prioritizes explicit user control. The syntax is inspired by Handlebars/Nunjucks but is strictly function-based: `{{ function parameter_name }}`. Here, `parameter_name` refers to the key in the data context, not the literal value.
+Templates use a linear processing workflow based on data injection and transformations. The basic syntax is:
+`{{ parameter | function-name }}`
 
-**Note:** The default syntax without a function (e.g., `{{ parameter_name }}`) is invalid. Users *must* explicitly define how the data enters the HTTP stream. This ensures that the hydration state machine can catch malformed templates immediately and forces developer explicitness.
+To apply multiple transformations, chain them using the pipe operator (`|`). Functions are processed from left to right:
+`{{ parameter | function-one | function-two(arg-one, arg-two) }}`
+
+* Parameters refer to keys in the data context (e.g., `user-id`).
+* Functions are specific transformations applied to the data before injection into the HTTP stream.
 
 ## Built-in Escaping Options
 
 #### Core Functions
 These handle basic data injection and URL safety.
 
-* **raw Mechanism** / Injects / the variable exactly as provided in the data map with zero escaping or transformation. Mandatory for all direct injections (`{{ raw host_url }}`).
-* **url Mechanism** / Percent-encodes / the value (e.g., space becomes `%20`, `#` becomes `%23`) for safe use in URL paths or query parameters (`{{ url path }}`).
+* **raw Mechanism** / Injects / the variable exactly as provided in the data map with zero escaping or transformation. Mandatory for all direct injections (`{{ host-url | raw }}`).
+* **url Mechanism** / Percent-encodes / the value (e.g., space becomes `%20`, `#` becomes `%23`) for safe use in URL paths or query parameters (`{{ path | url }}`).
 
 #### JSON Functions
 Designed to allow precise control over JSON structure without breaking syntax. Similar granular patterns (`xml-*`, `yml-*`) will follow in the future.
 
-* **json-value Mechanism** / Serializes / the parameter into its JSON representation (e.g., boolean `true`, list `[1,2]`, object `{"k":"v"}`). If the variable is a string, it includes the surrounding quotes. If it is a boolean or number, it remains unquoted (`{{ json-value obj }}`).
-* **json-string Mechanism** / Escapes / internal characters only (e.g., newlines, tabs, and internal double quotes `"` becomes `\"`). It does not wrap the output in quotes, allowing it to be concatenated inside a larger string (`{{ json-string bio }}`).
-* **json-key Mechanism** / Safely escapes / a string specifically for use as a JSON property key (`{{ json-key name }}`).
+* **json-value Mechanism** / Serializes / the parameter into its JSON representation (e.g., boolean `true`, list `[1,2]`, object `{"k":"v"}`). If the variable is a string, it includes the surrounding quotes. If it is a boolean or number, it remains unquoted (`{{ obj | json-value }}`).
+* **json-string Mechanism** / Escapes / internal characters only (e.g., newlines, tabs, and internal double quotes `"` becomes `\"`). It does not wrap the output in quotes, allowing it to be concatenated inside a larger string (`{{ bio | json-string }}`).
+* **json-key Mechanism** / Safely escapes / a string specifically for use as a JSON property key (`{{ name | json-key }}`).
 
 #### File Functions
 These functions instruct the execution engine how to resolve a local file path into a payload.
 
-* **file-as-base64 Mechanism** / Encodes / the binary content of a file into a Base64 string, ideal for JSON image uploads (`{{ file-as-base64 path }}`).
+* **file-as-base64 Mechanism** / Encodes / the binary content of a file into a Base64 string, ideal for JSON image uploads (`{{ path | file-as-base64 }}`).
 * **file-as-utf8:** Reads a local file and ensures the content is encoded as UTF-8 in the request body. Useful for injecting external text, GraphQL queries, or XML.
 * **file-as-is:** Treats the file as a raw binary stream, bypassing text encoding. This is used for `multipart/form-data` uploads or binary body transfers.
 * **multipart/form-data (Note):** Multipart requests are single HTTP requests. The body is divided into multiple sections, separated by a `boundary` string defined in the `Content-Type` header.
@@ -83,9 +88,9 @@ HTTP Template supports common HTTP request patterns through explicit function-ba
 Standard requests without a body pass dynamic data via query parameters. Use the `{{ url }}` function to ensure parameters are correctly percent-encoded.
 
 ```http
-GET /api/v1/search?q={{ url search_term }}&limit={{ raw limit_count }} HTTP/1.1
-Host: {{ raw api_host }}
-Authorization: Bearer {{ raw auth_token }}
+GET /api/v1/search?q={{ search-term | url }}&limit={{ limit-count | raw }} HTTP/1.1
+Host: {{ api-host | raw }}
+Authorization: Bearer {{ auth-token | raw }}
 Accept: application/json
 
 ```
@@ -100,8 +105,8 @@ Host: api.example.com
 Content-Type: application/json
 
 {
-  "event": "{{ json-string event_name }}",
-  "payload": {{ json-value event_data }}
+  "event": "{{ event-name | json-string }}",
+  "payload": {{ event-data | json-value }}
 }
 ```
 
@@ -113,7 +118,7 @@ POST /oauth/token HTTP/1.1
 Host: auth.example.com
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=client_credentials&client_id={{ url client_id }}&client_secret={{ url secret_key }}
+grant_type=client_credentials&client_id={{ client-id | url }}&client_secret={{ secret-key | url }}
 ```
 
 #### Case 4: Multipart Form Data
@@ -127,12 +132,12 @@ Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0g
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
 Content-Disposition: form-data; name="description"
 
-{{ raw file_description }}
+{{ file-description | raw }}
 ------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="document"; filename="{{ raw file_name }}"
+Content-Disposition: form-data; name="document"; filename="{{ file-name | raw }}"
 Content-Type: application/pdf
 
-{{ file-as-is document_path }}
+{{ document-path | file-as-is }}
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 ```
 
@@ -170,7 +175,7 @@ The JSON object represents the fully resolved request, stripped of all internal 
   - `type`: Indicates how the execution client should handle the content. Strict allowed values:
     - `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
     - `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
-    - `"json"`: A JSON object or array. The executor stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
+    - `"json"`: A JSON object or array. The executor natively stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
     - `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
   - `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
 
@@ -183,28 +188,28 @@ The JSON object represents the fully resolved request, stripped of all internal 
 **`update-user.httpt` (The Template)**
 ```http
 POST /v1/users/update HTTP/1.1
-Host: {{ raw api_host }}
-Authorization: Bearer {{ raw token }}
+Host: {{ api-host | raw }}
+Authorization: Bearer {{ token | raw }}
 Content-Type: application/json
 
 {
-  "{{ json-key dynamic_field }}": {{ json-value metadata_object }},
-  "name": {{ json-value username }},
-  "description": "User bio: {{ json-string bio }}",
-  "avatar_b64": "{{ file-as-base64 avatar_path }}"
+  "{{ dynamic-field | json-key }}": {{ metadata-object | json-value }},
+  "name": {{ username | json-value }},
+  "description": "User bio: {{ bio | json-string }}",
+  "avatar-b64": "{{ avatar-path | file-as-base64 }}"
 }
 ```
 
 **`data.json` (The Hydration Context)**
 ```json
 {
-  "api_host": "api.production.internal",
+  "api-host": "api.production.internal",
   "token": "abc123xyz",
-  "dynamic_field": "user preferences",
-  "metadata_object": { "theme": "dark", "notifications": false },
+  "dynamic-field": "user preferences",
+  "metadata-object": { "theme": "dark", "notifications": false },
   "username": "Taras Mazepa",
   "bio": "Software Engineer\nLikes \"South Park\"",
-  "avatar_path": "./images/profile.png"
+  "avatar-path": "./images/profile.png"
 }
 ```
 
@@ -219,7 +224,7 @@ Content-Type: application/json
   "user preferences": {"theme":"dark","notifications":false},
   "name": "Taras Mazepa",
   "description": "User bio: Software Engineer\nLikes \"South Park\"",
-  "avatar_b64": "iVBORw0KGgoAAAANSUhEU..."
+  "avatar-b64": "iVBORw0KGgoAAAANSUhEU..."
 }
 ```
 
@@ -227,19 +232,19 @@ Content-Type: application/json
 
 **`upload-document.httpt` (The Template)**
 ```http
-PUT /api/documents/{{ url folder_name }}/{{ url file_name }} HTTP/1.1
+PUT /api/documents/{{ folder-name | url }}/{{ file-name | url }} HTTP/1.1
 Host: api.example.com
 Content-Type: application/octet-stream
 
-{{ file-as-is document_path }}
+{{ document-path | file-as-is }}
 ```
 
 **`data.json` (The Hydration Context)**
 ```json
 {
-  "folder_name": "user uploads",
-  "file_name": "report #1.pdf",
-  "document_path": "./docs/report.pdf"
+  "folder-name": "user uploads",
+  "file-name": "report #1.pdf",
+  "document-path": "./docs/report.pdf"
 }
 ```
 
@@ -335,18 +340,18 @@ Because HTTP Template delegates the actual network request to underlying clients
 
 Because `.httpt` templates are often loaded dynamically at runtime, the ecosystem provides a lightweight verification library to statically analyze templates before they are hydrated or executed. This ensures that templates are syntactically sound and fulfill strict data contracts.
 
-The verification processing workflow performs two distinct checks:
+The verification Processing Workflow performs two distinct checks:
 
 ### 1. Structural/Syntax Verification
 The verifier parses the raw `.httpt` string to ensure all templating boundaries are properly formed.
-* **Checks:** Ensures there are no unclosed brackets (e.g., `{{ raw missing_close `), unrecognized built-in functions, or illegally nested tags.
+* **Checks:** Ensures there are no unclosed brackets (e.g., `{{ missing-close | raw `), unrecognized built-in functions, or illegally nested tags.
 * **Failure State:** Throws a `TemplateSyntaxError` indicating the exact line and character index of the malformed syntax.
 
 ### 2. Data Contract Verification
 Developers can enforce a strict "Data Contract" by providing an array of expected argument keys. The verifier scans the template, extracts every unique parameter name defined inside the `{{ }}` blocks, and performs a strict set-equivalence check against the expected array.
 
-* **Missing Arguments:** If the template requires a variable (e.g., `{{ url user_id }}`) that is *not* in the expected contract, it throws a `MissingArgumentError`.
-* **Extra Arguments:** If the expected contract provides a variable (e.g., `"api_key"`) that the template *never uses*, it throws an `UnexpectedArgumentError` (preventing unused or deprecated data from lingering in execution contexts).
+* **Missing Arguments:** If the template requires a variable (e.g., `{{ user-id | url }}`) that is *not* in the expected contract, it throws a `MissingArgumentError`.
+* **Extra Arguments:** If the expected contract provides a variable (e.g., `"api-key"`) that the template *never uses*, it throws an `UnexpectedArgumentError` (preventing unused or deprecated data from lingering in execution contexts).
 
 ### Example SDK Usage
 The verifier is designed to be run during initialization or CI/CD pipelines, completely bypassing the Hydrate and Parse stages.
@@ -355,13 +360,13 @@ The verifier is designed to be run during initialization or CI/CD pipelines, com
 import { verifyContract } from '@httpt/core';
 
 const template = `
-GET /users/{{ url user_id }} HTTP/1.1
+GET /users/{{ user-id | url }} HTTP/1.1
 Host: api.example.com
-Authorization: Bearer {{ raw auth_token }}
+Authorization: Bearer {{ auth-token | raw }}
 `;
 
 // Define the strict contract the application expects to provide
-const expectedArguments = ["user_id", "auth_token"];
+const expectedArguments = ["user-id", "auth-token"];
 
 try {
   // Returns true if the template syntax is perfect AND the arguments match exactly
@@ -379,7 +384,7 @@ try {
 
 ## The Testing Processing Workflow
 
-Defining the IR as JSON unlocks a highly decoupled testing processing workflow:
+Defining the IR as JSON unlocks a highly decoupled testing Processing Workflow:
 
 1.  **Parser Tests (`.httpt-r` -> `.httpt-ir`):** Feed raw HTTP strings into the parser and assert the exact JSON output.
 2.  **Executor Tests (`.httpt-ir` -> Network):** Feed mock IR files into the execution engine and assert that the correct `curl` arguments or `fetch` configurations are generated.
@@ -397,7 +402,7 @@ GET /api/v1/search HTTP/1.1
 Host: api.example.com
 ```
 
-In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the HTTP Template *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the processing workflow needs a way to resolve the scheme.
+In standard network traffic, the protocol is determined entirely by the transport layer (e.g., opening a TCP socket on port 80 vs. a TLS socket on port 443). However, because the HTTP Template *Execute Stage* hands payloads off to high-level clients that require fully qualified URLs, the Processing Workflow needs a way to resolve the scheme.
 
 To solve this, HTTP Template approaches the problem in two phases:
 
@@ -415,7 +420,7 @@ During the design phase, we evaluated and rejected several other options to ensu
 
 * **Absolute URIs (`GET https://api.example.com/v1 HTTP/1.1`):** While technically permitted by RFC 9110/9112 (mostly for proxies), it clutters the request line and makes the required `Host` header partially redundant.
 * **Port Inference from `Host`:** Guessing the scheme based on the port (e.g., assuming `:443` means `https`) is brittle. It forces the executor to default to `https` when omitted, and breaks entirely if an API runs HTTPS on a non-standard port like `8443`.
-* **YAML Frontmatter:** Injecting a metadata block at the top of the file was discarded because it breaks the "it's just a raw HTTP string" philosophy and complicates the parsing processing workflow.
+* **YAML Frontmatter:** Injecting a metadata block at the top of the file was discarded because it breaks the "it's just a raw HTTP string" philosophy and complicates the parsing Processing Workflow.
 
 ### Design Note: Line Endings (\n vs \r\n)
 
@@ -429,25 +434,7 @@ Because we hydrate before parsing, parser verification errors will point to char
 
 To solve this without bloating the parser, the *Hydrate Stage* emits a dedicated **Index Shift Map** as a sidecar artifact. This JSON file acts as a stateless, highly queryable source map for the downstream execution engine.
 
-#### The Index Shift Map
-
-By explicitly storing both the start index and the length of every substitution, the map is mathematically redundant but allows the error handler to instantly reverse-map parser errors without tracking state or calculating cumulative deltas.
-
-```json
-{
-  "schema-version": "1.0",
-  "substitutions": [
-    {
-      "original-start": 42,       // Where the {{ tag }} started
-      "original-length": 15,      // The length of the {{ tag }}
-      "hydrated-start": 42,       // Where the injected string starts
-      "hydrated-length": 81       // The length of the injected string
-    }
-  ]
-}
-```
-
-When the execution engine catches a syntax error (e.g., at character 100), it can simply query this map to find the overlapping `hydrated_start` and `hydrated_length` bounds, instantly tracing the failure back to the exact `original_start` block in the developer's `.httpt` file.
+See the 'Source Mapping' subsection in the Processing Workflow (Section II) for the Index Shift Map implementation and rationale.
 
 # VIII. Future Explorations
 
@@ -461,13 +448,13 @@ Expanding HTTP Template to template responses unlocks two powerful workflows:
 
 Mocking: Standing up local mock servers that serve hydrated .httpt response templates.
 Asserting: Firing a real request and verifying the server's output against a .httpt response template during integration testing.
-Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal processing workflow changes:
+Because the Hydrate Stage is agnostic to whether it is processing a request or a response, supporting this requires minimal Processing Workflow changes:
 
 Parser State: The parser's Request Line evaluation must branch at the root to accept either a Request-Line or a Status-Line.
 IR Schema: The Intermediate Representation (IR) JSON must introduce a root type field (e.g., "type": "request" | "response") so the downstream Execute Stage knows how to interpret the payload.
 
 ## Roadmap & Contributing
 
-HTTP Template is currently in active incubation. The overarching goal is to build out the parsing and execution processing workflow so that `.httpt-ir` files can eventually be executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
+HTTP Template is currently in active incubation. The overarching goal is to build out the parsing and execution Processing Workflow so that `.httpt-ir` files can eventually be executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
 
 If you are interested in building out execution clients, contributing to the parser, or writing static analysis tooling, please refer to the schemas defined in this document.
