@@ -1,6 +1,12 @@
-# Parser Test Fixtures
+# End-to-End (E2E) Test Fixtures
 
 This directory contains the test vectors for the **Parse & Verify Stage** of the [HTTP Template](../../incubation.md) processing workflow.
+
+## Multistep Verification
+These fixtures are designed for granular or full-lifecycle testing:
+1. **Hydration Stage:** Verify that `.httpt` + `.data.json` produces `.httpt-r` and the `.httpt-map`.
+2. **Parse Stage:** Verify that `.httpt-r` parses into the `.httpt-ir`.
+3. **Mapping Integrity:** Verify that a character index in `.httpt-r` can be accurately mapped back to the `.httpt` source using the `.httpt-map`.
 
 The parser's primary job is to split a hydrated `.httpt-r` string into a structured Intermediate Representation (`.httpt-ir`), handling pseudo-header extraction and O(1) body handoffs.
 

@@ -1,0 +1,4 @@
+GET /api/v1/search?q={{ search-term | url }} HTTP/1.1
+Host: {{ api-host | raw }}
+Authorization: Bearer {{ auth-token | raw }}
+Accept: application/json
