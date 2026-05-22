@@ -28,8 +28,6 @@ At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9
 
 # II. The Parsing & Execution Processing Workflow
 
-## Parsing & Execution Processing Workflow
-
 The execution of an .httpt file consists of three stages: Hydrate, Parse, and Execute.
 
 * **Hydrate Stage Mechanism (Single-Pass State Machine)** / Implements / hydration as a single-pass streaming state machine rather than relying on heavy regex engines or intermediate ASTs.
@@ -76,8 +74,8 @@ Designed to allow precise control over JSON structure without breaking syntax. S
 These functions instruct the execution engine how to resolve a local file path into a payload.
 
 * **file-as-base64 Mechanism** / Encodes / the binary content of a file into a Base64 string, ideal for JSON image uploads (`{{ path | file-as-base64 }}`).
-* **file-as-utf8:** Reads a local file and ensures the content is encoded as UTF-8 in the request body. Useful for injecting external text, GraphQL queries, or XML.
-* **file-as-is:** Treats the file as a raw binary stream, bypassing text encoding. This is used for `multipart/form-data` uploads or binary body transfers.
+* **file-as-utf8 Mechanism** / Reads / a local file and ensures the content is encoded as UTF-8 in the request body. Useful for injecting external text, GraphQL queries, or XML.
+* **file-as-is Mechanism** / Streams / the file as a raw binary stream, bypassing text encoding. This is used for `multipart/form-data` uploads or binary body transfers.
 * **multipart/form-data (Note):** Multipart requests are single HTTP requests. The body is divided into multiple sections, separated by a `boundary` string defined in the `Content-Type` header.
 
 ## Common Cases & Variations
@@ -171,13 +169,13 @@ The JSON object represents the fully resolved request, stripped of all internal 
 * **`uri`**: The exact target path and query string (e.g., `/api/v1/search?q=term`).
 * **`version`**: The HTTP protocol version (e.g., `HTTP/1.1`).
 * **`headers`**: An array of key-value objects. An array is used instead of a standard JSON dictionary to safely preserve multiple headers with the exact same name without data loss.
-- `body` *(Optional)*: An object defining the payload structure using a discriminated union.
-  - `type`: Indicates how the execution client should handle the content. Strict allowed values:
-    - `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
-    - `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
-    - `"json"`: A JSON object or array. The executor natively stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
-    - `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
-  - `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
+* `body` *(Optional)*: An object defining the payload structure using a discriminated union.
+  * `type`: Indicates how the execution client should handle the content. Strict allowed values:
+    * `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
+    * `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
+    * `"json"`: A JSON object or array. The executor natively stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
+    * `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
+  * `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
 
 # V. End-to-End Examples
 
@@ -317,11 +315,11 @@ The Parse Stage will output the following IR JSON:
 ```json
 {
   "schema-version": "1.0",
+  "host": "api.example.com",
   "method": "GET",
   "uri": "/api/v1/search?q=term",
   "version": "HTTP/1.1",
   "headers": [
-    { "name": "Host", "value": "api.example.com" },
     { "name": "Authorization", "value": "Bearer abc123xyz" }
   ]
 }
@@ -391,8 +389,6 @@ Defining the IR as JSON unlocks a highly decoupled testing Processing Workflow:
 
 # VII. Design Decisions & Trade-offs
 
-## Design Decisions & Trade-offs
-
 ### Design Note: Transport Protocol & Scheme
 
 A fundamental quirk of bridging raw HTTP with modern execution clients (like `fetch` or `curl`) is that standard origin-form HTTP requests (RFC 9110/9112) do not inherently include the `http://` or `https://` scheme.
@@ -426,7 +422,7 @@ During the design phase, we evaluated and rejected several other options to ensu
 
 While the official HTTP specification (RFC 9110/9112) strictly requires `CRLF` (`\r\n`) for line terminators, HTTP Template relaxes this requirement for templates.
 
-Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `curl`, `fetch`) rather than being streamed directly to a raw TCP socket, the parser fully supports standard Unix `LF` (`\n`) line endings. This allows developers to write and format `.httpt` files naturally in any modern text editor, relying on the underlying HTTP client to enforce standard wire-level formatting during execution. If direct socket execution is supported in the future, the **Emit Stage** can be updated to normalize line endings automatically.
+Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `curl`, `fetch`) rather than being streamed directly to a raw TCP socket, the parser fully supports standard Unix `LF` (`\n`) line endings. This allows developers to write and format `.httpt` files naturally in any modern text editor, relying on the underlying HTTP client to enforce standard wire-level formatting during execution. If direct socket execution is supported in the future, the **output generation** can be updated to normalize line endings automatically.
 
 ### Design Note: Source Mapping Trade-off
 
