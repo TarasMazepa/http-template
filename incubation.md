@@ -2,7 +2,7 @@
 
 **HTTP Template** is a templating tool for defining HTTP requests in raw HTTP format (RFC 9110/9112).
 
-At its core, it performs string replacement on raw HTTP text. To handle the data formatting required for valid HTTP requests, it provides a set of explicit functions to encode variables (e.g., JSON escaping, URL encoding, or binary file streaming).
+At its core, it performs string replacement on raw HTTP text. To handle the data formatting required for valid HTTP requests, it provides a set of explicit functions to encode parameters (e.g., JSON escaping, URL encoding, or binary file streaming).
 
 The tool consumes a template, hydrates it using a data context, and outputs a structured JSON Intermediate Representation (`.httpt-ir`). This IR can then be used by various execution clients to perform the actual network request.
 
