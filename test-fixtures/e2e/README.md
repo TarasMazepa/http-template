@@ -1,14 +1,14 @@
 # End-to-End (E2E) Test Fixtures
 
-This directory contains the test vectors for the **Parse & Verify Stage** of the [HTTP Template](../../incubation.md) processing workflow.
+This directory contains the test vectors for the **Parse Stage** of the [HTTP Template](../../incubation.md) processing workflow.
 
 ## Multistep Verification
 These fixtures are designed for granular or full-lifecycle testing:
 1. **Hydration Stage:** Verify that `.httpt` + `.data.json` produces `.httpt-r` and the `.httpt-map`.
-2. **Parse Stage:** Verify that `.httpt-r` parses into the `.httpt-ir`.
+2. **Parse Stage:** Verify that `.httpt-r` deconstructs into the `.httpt-ir`.
 3. **Mapping Integrity:** Verify that a character index in `.httpt-r` can be accurately mapped back to the `.httpt` source using the `.httpt-map`.
 
-The parser's primary job is to split a hydrated `.httpt-r` string into a structured Intermediate Representation (`.httpt-ir`), handling pseudo-header extraction and O(1) body handoffs.
+The parser's primary job is to deconstruct a hydrated `.httpt-r` string into a structured Intermediate Representation (`.httpt-ir`), handling pseudo-header extraction and O(1) body handoffs.
 
 ## The Testing Matrix
 
@@ -60,11 +60,27 @@ The parser must strictly split at the *first* occurrence of a double-newline.
 * **Spacing:** Handling extra spaces between Method, URI, and Version.
 * **Special URIs:** Absolute URIs in the request line vs. relative paths.
 
-## File Structure
+## File Specification
 
-A complete test case consists of five files:
-1. **`###-name.httpt`**: The source template with `{{ }}` tags.
-2. **`###-name.data.json`**: The hydration context (variables).
-3. **`###-name.httpt-map`**: The Index Shift Map tracking character offsets.
-4. **`###-name.httpt-r`**: The hydrated "Resolved" HTTP string.
-5. **`###-name.httpt-ir`**: The final JSON Intermediate Representation.
+A complete test case consists of six files:
+* `*.httpt` : Source template.
+* `*.data.json` : Pure configuration variables (strictly no stream references).
+* `*-streams.json` : (New) Stream definition context for binary data.
+* `*.httpt-r` : The hydrated request (resolved).
+* `*.httpt-ir` : Expected Intermediate Representation (IR).
+* `*.httpt-map` : Index Shift Map.
+
+## Workflow & Hydration Signature
+
+* The testing workflow uses the mandatory hydration signature: `hydrate(template, data, streams)`.
+* The test runner MUST load the `[test-id]-streams.json` file to populate the third `streams` argument if the test requires binary data.
+
+## Master Specification Rules (Hardened Logic)
+
+* **Stream Reference Validation:**
+  * Implicit default (index 0) is permitted ONLY if exactly one stream is present.
+  * Ambiguity Error: If >1 `provided` stream is referenced, all must explicitly define a `content` index.
+  * Uniqueness Error: Every stream reference index MUST be unique; duplicates trigger a validation error.
+* **Stream Orchestration:**
+  * **Materialization (Metadata):** Streams used in Headers/Request-Line are buffered to memory during hydration. If a stream is too large, throw an error.
+  * **Concatenation (Body):** Streams used in the Body are piped via streaming pipeline (O(1) memory).
