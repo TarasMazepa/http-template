@@ -4,7 +4,7 @@
 
 At its core, it performs string replacement on raw HTTP text. To handle the data formatting required for valid HTTP requests, it provides a set of explicit functions to encode parameters (e.g., JSON escaping, URL encoding, or binary file streaming).
 
-The tool consumes a template, hydrates it using the explicit signature `hydrate(template, data, streams)`, and outputs a structured JSON Intermediate Representation (`.httpt-ir`). The `streams` argument is an array of `StreamDefinition` objects passed as a third argument, separate from the `data` context. The `data.json` context must now only contain pure configuration variables. This IR can then be used by various execution clients to perform the actual network request.
+The tool consumes a template, hydrates it using the explicit signature `hydrate(template, data, streams)`, and outputs a structured JSON Intermediate Representation (`.httpt-ir`). The `streams` argument is an array of **native I/O objects** (e.g., `ReadableStream`, `Buffer`, `Blob`, or `File` handles, depending on the SDK environment) passed as a third argument, separate from the `data` context. The `data.json` context must now only contain pure configuration variables. This IR can then be used by various execution clients to perform the actual network request.
 
 This document serves as the technical specification for the templating syntax, the parsing workflow, and the IR schema.
 
@@ -162,10 +162,10 @@ Because the hydrated `.httpt-r` and `.httpt-ir` files are flat text streams, the
 
 ## The StreamDefinition Schema
 
-The `StreamDefinition` schema is a unified data contract applied to both the `streams` array argument and the Intermediate Representation (the `body` field). It mandates that all binary/payload references consist of:
+The `StreamDefinition` schema is a unified data contract applied to both the `data.json` context and the Intermediate Representation (the `body` field). It mandates that all binary/payload references consist of:
 
 * `type`: Indicates how the execution client should handle the content (`text` | `base64` | `json` | `provided`).
-* `content`: The actual payload data or a reference to it. For `provided` types, `content` explicitly acts as the integer index in the `streams` array.
+* `content`: The actual payload data or a reference to it. For `provided` types, `content` explicitly acts as the integer index pointing directly to the native memory object residing at that index in the `streams` array.
 
 ## Stream Reference Validation
 
@@ -236,11 +236,11 @@ Content-Type: application/json
 }
 ```
 
-**`streams` Array Argument**
-```json
-[
-  { "type": "text", "content": "./images/profile.png" }
-]
+**Passing the Native Stream (SDK Example)**
+```javascript
+// The streams argument is passed as native memory objects
+const fileStream = fs.createReadStream('./images/profile.png');
+const resolved = hydrate(template, data, [ fileStream ]);
 ```
 
 **`.httpt-r` (The Hydrated/Resolved Output before client execution)**
@@ -280,11 +280,11 @@ Content-Type: application/octet-stream
 }
 ```
 
-**`streams` Array Argument**
-```json
-[
-  { "type": "text", "content": "./docs/report.pdf" }
-]
+**Passing the Native Stream (SDK Example)**
+```javascript
+// The streams argument is passed as native memory objects
+const fileStream = fs.createReadStream('./docs/report.pdf');
+const resolved = hydrate(template, data, [ fileStream ]);
 ```
 
 **`.httpt-r` (The Hydrated/Resolved Output before client execution)**
@@ -379,6 +379,8 @@ Because HTTP Template delegates the actual network request to underlying clients
 
 * **Command Line (CLI):** Operates primarily on files. You provide a `.httpt` file and a data source (e.g., via `--data payload.json`, env vars, or stdin). The CLI hydrates it into a `.httpt-r` string, parses it into the IR, and passes it directly to a standard client like `curl`.
 * **JavaScript / Dart SDK:** Operates entirely in memory. You pass the template as a raw string directly to the execution function, along with a dictionary/map of your data. The library hydrates and parses it in-memory, executing the request using standard APIs like `fetch` or `dart:io HttpClient`.
+
+*Note: When using the SDK, the `streams` array accepts native platform objects (`Uint8Array`, `ReadableStream`, etc.). When using the CLI, the runner handles mapping local file paths to these native streams before passing them to the hydrator.*
 
 ## Static Analysis & Contract Verification
 
