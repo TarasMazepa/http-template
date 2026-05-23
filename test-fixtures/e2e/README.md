@@ -1,5 +1,9 @@
 # End-to-End (E2E) Test Fixtures
 
+## Document Intent
+
+This document serves two purposes. The first half (**The Testing Matrix**) describes the dimensions and edge-cases that these test vectors evaluate. The second half (**Test Runner Specification**) defines the strict, technical contract for how any test runner must load, hydrate, and validate these files.
+
 This directory contains the test vectors for the **Parse Stage** of the [HTTP Template](../../incubation.md) processing workflow.
 
 ## Multistep Verification
@@ -60,22 +64,24 @@ The parser must strictly split at the *first* occurrence of a double-newline.
 * **Spacing:** Handling extra spaces between Method, URI, and Version.
 * **Special URIs:** Absolute URIs in the request line vs. relative paths.
 
-## File Specification
+## Test Runner Specification
+
+### File Specification
 
 A complete test case consists of six files:
 * `*.httpt` : Source template.
 * `*.data.json` : Pure configuration variables (strictly no stream references).
-* `*-streams.json` : (New) Stream definition context for binary data.
+* `*-stream-Y` : Stream file containing raw binary or text data. The integer `Y` in the filename directly correlates to the integer `content` index in the `StreamDefinition` (e.g., `005-stream-0`, `005-stream-1`).
 * `*.httpt-r` : The hydrated request (resolved).
 * `*.httpt-ir` : Expected Intermediate Representation (IR).
 * `*.httpt-map` : Index Shift Map.
 
-## Workflow & Hydration Signature
+### Workflow & Hydration Signature
 
-* The testing workflow uses the mandatory hydration signature: `hydrate(template, data, streams)`.
-* The test runner MUST load the `[test-id]-streams.json` file to populate the third `streams` argument if the test requires binary data.
+* The testing workflow uses the mandatory hydration signature: `hydrate(template, data, nativeStreamsArray)`.
+* The test runner MUST sequentially attempt to read `XXX-stream-0`, `XXX-stream-1`, etc. For each found file, it loads it into memory as a **native I/O object** (e.g., `Buffer` or `ReadableStream`), and passes the resulting array as the third argument: `hydrate(template, data, nativeStreamsArray)`.
 
-## Master Specification Rules (Hardened Logic)
+### Master Specification Rules (Hardened Logic)
 
 * **Stream Reference Validation:**
   * Implicit default (index 0) is permitted ONLY if exactly one stream is present.
