@@ -1,0 +1,7 @@
+{
+  "api-host": "api.production.internal",
+  "token": "abc123xyz",
+  "field": "user preferences",
+  "prefs": { "theme": "dark", "notifications": false },
+  "user-name": "Taras Mazepa"
+}

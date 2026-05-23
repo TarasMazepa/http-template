@@ -1,6 +1,12 @@
-# Parser Test Fixtures
+# End-to-End (E2E) Test Fixtures
 
 This directory contains the test vectors for the **Parse & Verify Stage** of the [HTTP Template](../../incubation.md) processing workflow.
+
+## Multistep Verification
+These fixtures are designed for granular or full-lifecycle testing:
+1. **Hydration Stage:** Verify that `.httpt` + `.data.json` produces `.httpt-r` and the `.httpt-map`.
+2. **Parse Stage:** Verify that `.httpt-r` parses into the `.httpt-ir`.
+3. **Mapping Integrity:** Verify that a character index in `.httpt-r` can be accurately mapped back to the `.httpt` source using the `.httpt-map`.
 
 The parser's primary job is to split a hydrated `.httpt-r` string into a structured Intermediate Representation (`.httpt-ir`), handling pseudo-header extraction and O(1) body handoffs.
 
@@ -56,7 +62,9 @@ The parser must strictly split at the *first* occurrence of a double-newline.
 
 ## File Structure
 
-Every test case consists of a pair of files:
-
-1. **`###-name.httpt-r`**: The hydrated input string (The "Resolved" template).
-2. **`###-name.httpt-ir`**: The expected JSON Intermediate Representation.
+A complete test case consists of five files:
+1. **`###-name.httpt`**: The source template with `{{ }}` tags.
+2. **`###-name.data.json`**: The hydration context (variables).
+3. **`###-name.httpt-map`**: The Index Shift Map tracking character offsets.
+4. **`###-name.httpt-r`**: The hydrated "Resolved" HTTP string.
+5. **`###-name.httpt-ir`**: The final JSON Intermediate Representation.

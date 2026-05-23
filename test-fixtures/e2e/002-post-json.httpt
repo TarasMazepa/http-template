@@ -1,0 +1,9 @@
+POST /v1/users/update HTTP/1.1
+Host: {{ api-host | raw }}
+Authorization: Bearer {{ token | raw }}
+Content-Type: application/json
+
+{
+  "{{ field | json-key }}": {{ prefs | json-value }},
+  "name": "{{ user-name | json-string }}"
+}
