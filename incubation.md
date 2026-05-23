@@ -4,7 +4,7 @@
 
 At its core, it performs string replacement on raw HTTP text. To handle the data formatting required for valid HTTP requests, it provides a set of explicit functions to encode parameters (e.g., JSON escaping, URL encoding, or binary file streaming).
 
-The tool consumes a template, hydrates it using a data context, and outputs a structured JSON Intermediate Representation (`.httpt-ir`). This IR can then be used by various execution clients to perform the actual network request.
+The tool consumes a template, hydrates it using the explicit signature `hydrate(template, data, streams)`, and outputs a structured JSON Intermediate Representation (`.httpt-ir`). The `streams` argument is an array of `StreamDefinition` objects passed as a third argument, separate from the `data` context. The `data.json` context must now only contain pure configuration variables. This IR can then be used by various execution clients to perform the actual network request.
 
 This document serves as the technical specification for the templating syntax, the parsing workflow, and the IR schema.
 
@@ -71,7 +71,7 @@ Designed to allow precise control over JSON structure without breaking syntax. S
 * **json-key Mechanism** / Escapes / a string specifically for use as a JSON property key (`{{ name | json-key }}`).
 
 #### Streaming Transformations
-These functions are Streaming Transformations that instruct the execution engine how to resolve a stream (defined in the unified `StreamDefinition` context) into a payload.
+These functions are 'Streaming Transformations' that operate on the `StreamDefinition` context. They instruct the execution engine how to resolve a stream into a payload.
 
 * **stream-as-base64 Mechanism** / Encodes / the binary content of a stream into a Base64 string, ideal for JSON image uploads (`{{ path | stream-as-base64 }}`).
 * **stream-as-utf8 Mechanism** / Reads / a stream and ensures the content is encoded as UTF-8 in the request body. Useful for injecting external text, GraphQL queries, or XML.
@@ -162,10 +162,25 @@ Because the hydrated `.httpt-r` and `.httpt-ir` files are flat text streams, the
 
 ## The StreamDefinition Schema
 
-The `StreamDefinition` schema is a unified data contract applied to both the hydration data context (the `streams` array) and the Intermediate Representation (the `body` field). It mandates that all binary/payload references consist of:
+The `StreamDefinition` schema is a unified data contract applied to both the `streams` array argument and the Intermediate Representation (the `body` field). It mandates that all binary/payload references consist of:
 
-* `type`: Indicates how the execution client should handle the content (`text`, `base64`, `json`, `provided`).
-* `content`: The actual payload data or a reference to it.
+* `type`: Indicates how the execution client should handle the content (`text` | `base64` | `json` | `provided`).
+* `content`: The actual payload data or a reference to it. For `provided` types, `content` explicitly acts as the integer index in the `streams` array.
+
+## Stream Reference Validation
+
+When referencing streams within the context, the following validation rules apply:
+
+* **Implicit Default:** If `content` is omitted for a `provided` stream, it defaults to index `0`.
+* **Ambiguity Error:** If >1 `provided` stream is referenced in the context, all references MUST explicitly provide a `content` index. Implicit defaults are disallowed.
+* **Uniqueness Error:** Every stream reference index MUST be unique. Duplicate indices throw a validation error.
+
+## Stream Orchestration
+
+The following rules dictate how streams are handled during execution:
+
+* **Materialization (Metadata):** Any stream used in Request-Line or Headers MUST be buffered into memory (materialized) during hydration. If the stream is too large, throw an error.
+* **Concatenation (Body):** Any streams used in the Body MUST be concatenated via a streaming pipeline (O(1) memory) and piped directly to the network socket.
 
 ## IR JSON Schema
 
@@ -191,6 +206,8 @@ The JSON object represents the fully resolved request, stripped of all internal 
 
 ### Example 1: Complex User Update Request
 
+*This request is hydrated via the `hydrate(template, data, streams)` 3-argument signature.*
+
 **`update-user.httpt` (The Template)**
 ```http
 POST /v1/users/update HTTP/1.1
@@ -215,11 +232,15 @@ Content-Type: application/json
   "metadata-object": { "theme": "dark", "notifications": false },
   "username": "Generic User",
   "bio": "Software Engineer\nLikes \"South Park\"",
-  "streams": [
-    { "type": "text", "content": "./images/profile.png" }
-  ],
   "avatar-stream": { "type": "provided", "content": 0 }
 }
+```
+
+**`streams` Array Argument**
+```json
+[
+  { "type": "text", "content": "./images/profile.png" }
+]
 ```
 
 **`.httpt-r` (The Hydrated/Resolved Output before client execution)**
@@ -239,6 +260,8 @@ Content-Type: application/json
 
 ### Example 2: Binary File Upload
 
+*This request is hydrated via the `hydrate(template, data, streams)` 3-argument signature.*
+
 **`upload-document.httpt` (The Template)**
 ```http
 PUT /api/documents/{{ folder-name | url }}/{{ file-name | url }} HTTP/1.1
@@ -253,11 +276,15 @@ Content-Type: application/octet-stream
 {
   "folder-name": "user uploads",
   "file-name": "report #1.pdf",
-  "streams": [
-    { "type": "text", "content": "./docs/report.pdf" }
-  ],
   "document-stream": { "type": "provided", "content": 0 }
 }
+```
+
+**`streams` Array Argument**
+```json
+[
+  { "type": "text", "content": "./docs/report.pdf" }
+]
 ```
 
 **`.httpt-r` (The Hydrated/Resolved Output before client execution)**
@@ -273,7 +300,9 @@ JVBERi0xLjQKJ...
 
 ### Example 3: Hydrated Requests to JSON
 
-Given the hydrated `.httpt-r` string from **Scenario 1**:
+*Note: The original template for this output was hydrated via the `hydrate(template, data, streams)` 3-argument signature.*
+
+Given the hydrated `.httpt-r` string from **Example 1**:
 
 ```http
 POST /v1/users/update HTTP/1.1
