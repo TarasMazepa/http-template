@@ -1,0 +1,10 @@
+{
+  "name": "@httpt/test-utils",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {},
+  "scripts": {
+    "test": "echo \"no tests\""
+  }
+}
