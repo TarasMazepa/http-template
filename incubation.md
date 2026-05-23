@@ -252,8 +252,10 @@ Content-Type: application/octet-stream
 PUT /api/documents/user%20uploads/report%20%231.pdf HTTP/1.1
 Host: api.example.com
 Content-Type: application/octet-stream
+:httpt-body-type: base64
 
-<Binary Stream: ./docs/report.pdf>
+JVBERi0xLjQKJ...
+
 ```
 
 ### Example 3: Hydrated Requests to JSON
