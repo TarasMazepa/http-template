@@ -1,6 +1,6 @@
 # I. Introduction & Philosophy
 
-**HTTP Template** is a templating tool for defining HTTP requests in raw HTTP format (RFC 9110/9112).
+**HTTP Template** is a templating tool for defining HTTP requests using a syntax that resolves into raw HTTP format (RFC 9110/9112).
 
 At its core, it performs string replacement on raw HTTP text. To handle the data formatting required for valid HTTP requests, it provides a set of explicit functions to encode parameters (e.g., JSON escaping, URL encoding, or binary file streaming).
 
@@ -10,7 +10,7 @@ This document serves as the technical specification for the templating syntax, t
 
 ## The Format of .httpt
 
-At its core, an `.httpt` file adheres to the standard HTTP message format (RFC 9110/9112). While the source template (`.httpt`) may contain placeholders that do not conform to HTTP syntax, the *hydrated result* (`.httpt-r`) must structurally represent a valid HTTP request. The file is always divided into three distinct parts:
+At its core, the structure of an `.httpt` file is **modeled after** the standard HTTP message format (RFC 9110/9112). While the source template (`.httpt`) may contain placeholders that do not conform to HTTP syntax, the *hydrated result* (`.httpt-r`) must structurally represent a valid HTTP request. The file is always divided into three distinct parts:
 
 1. **The Request Line:** Defines the method, the target URI (which can be templated), and the HTTP version.
 2. **The Headers:** A list of key-value pairs.
@@ -35,7 +35,7 @@ The execution of an .httpt file consists of three stages: Hydrate, Parse, and Ex
   * **Output:** Writes in-place, outputting either directly to a hydrated `.httpt-r` file ("Resolved") or streaming directly into the downstream parser.
   * **Performance:** Achieves O(1) memory overhead since it does not build intermediate data structures for the template logic.
   * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `read-cursor` and a `write-cursor` whenever a `{{ parameter | function-name }}` tag is resolved.
-* **Parse & Verify Stage Mechanism (Parser)** / Verifies / the hydrated `.httpt-r` string or stream using a fast parser designed for a strict subset of HTTP.
+* **Parse Stage Mechanism (Parser)** / Deconstructs / the hydrated `.httpt-r` string or stream using a fast parser designed for a strict subset of HTTP.
   * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body. *(See Design Note: Line Endings in Section VII for rationale).*
   * **Head Parsing:** The Request Line and Headers are parsed using fast, string splitting. The Request Line is split by spaces, and headers are split by the first colon (`:`).
   * **O(1) Body Handoff:** The parser stops reading exactly at the double newline boundary. The unread remainder of the stream (the Body) is handed off directly to the downstream execution client without being buffered or mapped into memory.
@@ -143,7 +143,7 @@ Content-Type: application/pdf
 
 ## The Intermediate Representation (IR)
 
-Once the Parse Stage successfully verifies the hydrated `.httpt-r` string, it maps the extracted HTTP components into a strictly defined **Intermediate Representation (IR)**.
+Once the Parse Stage **deconstructs** the hydrated `.httpt-r` string, it maps the extracted HTTP components into a strictly defined Intermediate Representation (IR).
 
 To ensure maximum portability across execution environments (Dart, Node.js, CLI) and to enable deterministic unit testing, the IR is defined as a standard JSON structure. This serves as the definitive contract between the *Parse Stage* and the *Execute Stage*.
 
