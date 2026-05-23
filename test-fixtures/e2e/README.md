@@ -62,7 +62,9 @@ The parser must strictly split at the *first* occurrence of a double-newline.
 
 ## File Structure
 
-Every test case consists of a pair of files:
-
-1. **`###-name.httpt-r`**: The hydrated input string (The "Resolved" template).
-2. **`###-name.httpt-ir`**: The expected JSON Intermediate Representation.
+A complete test case consists of five files:
+1. **`###-name.httpt`**: The source template with `{{ }}` tags.
+2. **`###-name.data.json`**: The hydration context (variables).
+3. **`###-name.httpt-map`**: The Index Shift Map tracking character offsets.
+4. **`###-name.httpt-r`**: The hydrated "Resolved" HTTP string.
+5. **`###-name.httpt-ir`**: The final JSON Intermediate Representation.
