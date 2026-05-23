@@ -165,7 +165,7 @@ Because the hydrated `.httpt-r` and `.httpt-ir` files are flat text streams, the
 The JSON object represents the fully resolved request, stripped of all internal parsing artifacts.
 
 * **`schema-version`**: The version of the IR structure (currently `"1.0"`).
-* **`host`**: The extracted target host/authority for the request (e.g., `"api.production.internal"`). Note: The Parse Stage should extract the `Host` header (or `:authority` pseudo-header) to populate this root field.
+* **`host`**: The extracted target host/authority for the request (e.g., `"api.example.internal"`). Note: The Parse Stage should extract the `Host` header (or `:authority` pseudo-header) to populate this root field.
 * **`method`**: The HTTP method (e.g., `GET`, `POST`).
 * **`uri`**: The exact target path and query string (e.g., `/api/v1/search?q=term`).
 * **`version`**: The HTTP protocol version (e.g., `HTTP/1.1`).
@@ -202,11 +202,11 @@ Content-Type: application/json
 **`data.json` (The Hydration Context)**
 ```json
 {
-  "api-host": "api.production.internal",
+  "api-host": "api.example.internal",
   "token": "abc123xyz",
   "dynamic-field": "user preferences",
   "metadata-object": { "theme": "dark", "notifications": false },
-  "username": "Taras Mazepa",
+  "username": "Generic User",
   "bio": "Software Engineer\nLikes \"South Park\"",
   "avatar-path": "./images/profile.png"
 }
@@ -215,13 +215,13 @@ Content-Type: application/json
 **`.httpt-r` (The Hydrated/Resolved Output before client execution)**
 ```http
 POST /v1/users/update HTTP/1.1
-Host: api.production.internal
+Host: api.example.internal
 Authorization: Bearer abc123xyz
 Content-Type: application/json
 
 {
   "user preferences": {"theme":"dark","notifications":false},
-  "name": "Taras Mazepa",
+  "name": "Generic User",
   "description": "User bio: Software Engineer\nLikes \"South Park\"",
   "avatar-b64": "iVBORw0KGgoAAAANSUhEU..."
 }
@@ -262,14 +262,14 @@ Given the hydrated `.httpt-r` string from **Scenario 1**:
 
 ```http
 POST /v1/users/update HTTP/1.1
-Host: api.production.internal
+Host: api.example.internal
 Authorization: Bearer abc123xyz
 Content-Type: application/json
 :httpt-body-type: json
 
 {
   "user preferences": { "theme": "dark", "notifications": false },
-  "name": "Taras Mazepa"
+  "name": "Generic User"
 }
 ```
 
@@ -278,7 +278,7 @@ The Parse Stage will output the following IR JSON:
 ```json
 {
   "schema-version": "1.0",
-  "host": "api.production.internal",
+  "host": "api.example.internal",
   "method": "POST",
   "uri": "/v1/users/update",
   "version": "HTTP/1.1",
@@ -293,7 +293,7 @@ The Parse Stage will output the following IR JSON:
         "theme": "dark",
         "notifications": false
       },
-      "name": "Taras Mazepa"
+      "name": "Generic User"
     }
   }
 }
