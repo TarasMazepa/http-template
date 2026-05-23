@@ -61,14 +61,14 @@ To apply multiple transformations, chain them using the pipe operator (`|`). Fun
 These handle basic data injection and URL safety.
 
 * **raw Mechanism** / Injects / the variable exactly as provided in the data map with zero escaping or transformation. Mandatory for all direct injections (`{{ host-url | raw }}`).
-* **url Mechanism** / Percent-encodes / the value (e.g., space becomes `%20`, `#` becomes `%23`) for safe use in URL paths or query parameters (`{{ path | url }}`).
+* **url Mechanism** / Encodes / the value (e.g., space becomes `%20`, `#` becomes `%23`) for safe use in URL paths or query parameters (`{{ path | url }}`).
 
 #### JSON Functions
 Designed to allow precise control over JSON structure without breaking syntax. Similar granular patterns (`xml-*`, `yml-*`) will follow in the future.
 
 * **json-value Mechanism** / Serializes / the parameter into its JSON representation (e.g., boolean `true`, list `[1,2]`, object `{"k":"v"}`). If the variable is a string, it includes the surrounding quotes. If it is a boolean or number, it remains unquoted (`{{ obj | json-value }}`).
 * **json-string Mechanism** / Escapes / internal characters only (e.g., newlines, tabs, and internal double quotes `"` becomes `\"`). It does not wrap the output in quotes, allowing it to be concatenated inside a larger string (`{{ bio | json-string }}`).
-* **json-key Mechanism** / Safely escapes / a string specifically for use as a JSON property key (`{{ name | json-key }}`).
+* **json-key Mechanism** / Escapes / a string specifically for use as a JSON property key (`{{ name | json-key }}`).
 
 #### File Functions
 These functions instruct the execution engine how to resolve a local file path into a payload.
@@ -156,6 +156,7 @@ Because the hydrated `.httpt-r` and `.httpt-ir` files are flat text streams, the
 * `:httpt-body-type: provided`: Signals that the body content is handled as an in-memory reference (e.g., stream, Blob, or Buffer). This avoids serialization and disk I/O for large payloads or live streams. The body is omitted from the intermediate file contents.
 * `:httpt-body-type: base64`: Signals that the binary data is embedded directly in the intermediate text files as a Base64-encoded string. This ensures the data persists in a text-based format where streaming is not feasible.
 * `:httpt-body-type: text` (Default): Signals that the body is a standard UTF-8 string. This is the default if no pseudo-header is present.
+- `:httpt-body-type: json`: Signals that the body is a JSON string. The Parse Stage **must** buffer this content and parse it into a native JSON object or array for the IR `content` field. (Note: This is an exception to the O(1) body handoff rule, as the parser must read the full body to perform validation and conversion).
 
 **Implementation Note:** The parser consumes this pseudo-header to set the IR `body.type` and **MUST strictly remove it** from the final header set. It is an internal artifact and is never part of the executed HTTP request.
 
@@ -173,7 +174,7 @@ The JSON object represents the fully resolved request, stripped of all internal 
   * `type`: Indicates how the execution client should handle the content. Strict allowed values:
     * `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
     * `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
-    * `"json"`: A JSON object or array. The executor natively stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
+    * `"json"`: A JSON object or array. The executor natively stringifies this object (e.g., JSON.stringify()) before sending, avoiding the need for double-escaped strings in the IR.
     * `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
   * `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
 
@@ -264,6 +265,7 @@ POST /v1/users/update HTTP/1.1
 Host: api.production.internal
 Authorization: Bearer abc123xyz
 Content-Type: application/json
+:httpt-body-type: json
 
 {
   "user preferences": { "theme": "dark", "notifications": false },
@@ -427,6 +429,9 @@ Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `
 ### Design Note: Source Mapping Trade-off
 
 See the 'Source Mapping' subsection in the Processing Workflow (Section II) for the Index Shift Map implementation and rationale.
+
+## Design Exploration: The Identity Template
+An open area of exploration is the definition of a "Canonical Identity Template." This would be a specialized .httpt file designed to consume a full .httpt-ir object as its data context. The goal is to ensure that for any valid request r: Execute(Parse(r)) == r. This requires further thought on how to "splat" a collection of headers into the template without complex loop logic.
 
 
 # VIII. Future Explorations
