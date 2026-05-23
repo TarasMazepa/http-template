@@ -156,6 +156,7 @@ Because the hydrated `.httpt-r` and `.httpt-ir` files are flat text streams, the
 * `:httpt-body-type: provided`: Signals that the body content is handled as an in-memory reference (e.g., stream, Blob, or Buffer). This avoids serialization and disk I/O for large payloads or live streams. The body is omitted from the intermediate file contents.
 * `:httpt-body-type: base64`: Signals that the binary data is embedded directly in the intermediate text files as a Base64-encoded string. This ensures the data persists in a text-based format where streaming is not feasible.
 * `:httpt-body-type: text` (Default): Signals that the body is a standard UTF-8 string. This is the default if no pseudo-header is present.
+* `:httpt-body-type: json`: Signals that the body is a JSON string. The Parse Stage **must** buffer this content and parse it into a native JSON object or array for the IR `content` field. (Note: This is an exception to the O(1) body handoff rule, as the parser must read the full body to perform validation and conversion).
 
 **Implementation Note:** The parser consumes this pseudo-header to set the IR `body.type` and **MUST strictly remove it** from the final header set. It is an internal artifact and is never part of the executed HTTP request.
 
@@ -173,7 +174,7 @@ The JSON object represents the fully resolved request, stripped of all internal 
   * `type`: Indicates how the execution client should handle the content. Strict allowed values:
     * `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
     * `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
-    * `"json"`: A JSON object or array. The executor natively stringifies this object (e.g., `JSON.stringify()`) before sending, avoiding the need for double-escaped strings in the IR.
+    * `"json"`: A native JSON object or array. This allows SDK users to interact with the payload as a structured object rather than a raw string.
     * `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
   * `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
 
@@ -427,6 +428,9 @@ Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `
 ### Design Note: Source Mapping Trade-off
 
 See the 'Source Mapping' subsection in the Processing Workflow (Section II) for the Index Shift Map implementation and rationale.
+
+## Design Exploration: The Identity Template
+An open area of exploration is the definition of a "Canonical Identity Template." This would be a specialized .httpt file designed to consume a full .httpt-ir object as its data context. The goal is to ensure that for any valid request r: Execute(Parse(r)) == r. This requires further thought on how to "splat" a collection of headers into the template without complex loop logic.
 
 
 # VIII. Future Explorations
