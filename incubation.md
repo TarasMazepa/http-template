@@ -70,12 +70,12 @@ Designed to allow precise control over JSON structure without breaking syntax. S
 * **json-string Mechanism** / Escapes / internal characters only (e.g., newlines, tabs, and internal double quotes `"` becomes `\"`). It does not wrap the output in quotes, allowing it to be concatenated inside a larger string (`{{ bio | json-string }}`).
 * **json-key Mechanism** / Escapes / a string specifically for use as a JSON property key (`{{ name | json-key }}`).
 
-#### File Functions
-These functions instruct the execution engine how to resolve a local file path into a payload.
+#### Streaming Transformations
+These functions are Streaming Transformations that instruct the execution engine how to resolve a stream (defined in the unified `StreamDefinition` context) into a payload.
 
-* **file-as-base64 Mechanism** / Encodes / the binary content of a file into a Base64 string, ideal for JSON image uploads (`{{ path | file-as-base64 }}`).
-* **file-as-utf8 Mechanism** / Reads / a local file and ensures the content is encoded as UTF-8 in the request body. Useful for injecting external text, GraphQL queries, or XML.
-* **file-as-is Mechanism** / Streams / the file as a raw binary stream, bypassing text encoding. This is used for `multipart/form-data` uploads or binary body transfers.
+* **stream-as-base64 Mechanism** / Encodes / the binary content of a stream into a Base64 string, ideal for JSON image uploads (`{{ path | stream-as-base64 }}`).
+* **stream-as-utf8 Mechanism** / Reads / a stream and ensures the content is encoded as UTF-8 in the request body. Useful for injecting external text, GraphQL queries, or XML.
+* **stream-as-is Mechanism** / Streams / the stream as a raw binary payload, bypassing text encoding. This is used for `multipart/form-data` uploads or binary body transfers.
 * **multipart/form-data (Note):** Multipart requests are single HTTP requests. The body is divided into multiple sections, separated by a `boundary` string defined in the `Content-Type` header.
 
 ## Common Cases & Variations
@@ -120,7 +120,7 @@ grant_type=client_credentials&client_id={{ client-id | url }}&client_secret={{ s
 ```
 
 #### Case 4: Multipart Form Data
-For file uploads, set the `Content-Type` to `multipart/form-data` and include a `boundary` definition. Use `{{ parameter | file-as-is }}` to inject binary data into specific body parts.
+For file uploads, set the `Content-Type` to `multipart/form-data` and include a `boundary` definition. Use `{{ parameter | stream-as-is }}` to inject binary data into specific body parts.
 
 ```http
 POST /api/uploads HTTP/1.1
@@ -135,7 +135,7 @@ Content-Disposition: form-data; name="description"
 Content-Disposition: form-data; name="document"; filename="{{ file-name | raw }}"
 Content-Type: application/pdf
 
-{{ document-path | file-as-is }}
+{{ document-stream | stream-as-is }}
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 ```
 
@@ -160,6 +160,13 @@ Because the hydrated `.httpt-r` and `.httpt-ir` files are flat text streams, the
 
 **Implementation Note:** The parser consumes this pseudo-header to set the IR `body.type` and **MUST strictly remove it** from the final header set. It is an internal artifact and is never part of the executed HTTP request.
 
+## The StreamDefinition Schema
+
+The `StreamDefinition` schema is a unified data contract applied to both the hydration data context (the `streams` array) and the Intermediate Representation (the `body` field). It mandates that all binary/payload references consist of:
+
+* `type`: Indicates how the execution client should handle the content (`text`, `base64`, `json`, `provided`).
+* `content`: The actual payload data or a reference to it.
+
 ## IR JSON Schema
 
 The JSON object represents the fully resolved request, stripped of all internal parsing artifacts.
@@ -170,13 +177,13 @@ The JSON object represents the fully resolved request, stripped of all internal 
 * **`uri`**: The exact target path and query string (e.g., `/api/v1/search?q=term`).
 * **`version`**: The HTTP protocol version (e.g., `HTTP/1.1`).
 * **`headers`**: An array of key-value objects. An array is used instead of a standard JSON dictionary to safely preserve multiple headers with the exact same name without data loss.
-* `body` *(Optional)*: An object defining the payload structure using a discriminated union.
+* `body` *(Optional)*: An object defining the payload structure using the `StreamDefinition` schema.
   * `type`: Indicates how the execution client should handle the content. Strict allowed values:
     * `"text"`: A standard UTF-8 string payload (used for URL-encoded forms, XML, HTML, or raw strings). The executor sends it exactly as-is.
     * `"base64"`: A Base64 encoded string. The executor must decode this into a raw byte array before sending over the wire.
     * `"json"`: A JSON object or array. The executor natively stringifies this object (e.g., JSON.stringify()) before sending, avoiding the need for double-escaped strings in the IR.
     * `"provided"`: Indicates the payload is provided out-of-band at runtime (e.g., passing a file stream, Blob, or Buffer directly to the execution function).
-  * `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). This key is omitted when the type is `"provided"`.
+  * `content`: The actual payload data (String for `text`/`base64`, Object/Array for `json`). When the type is `"provided"`, this explicitly links to a stream index (Integer).
 
 # V. End-to-End Examples
 
@@ -195,7 +202,7 @@ Content-Type: application/json
   "{{ dynamic-field | json-key }}": {{ metadata-object | json-value }},
   "name": {{ username | json-value }},
   "description": "User bio: {{ bio | json-string }}",
-  "avatar-b64": "{{ avatar-path | file-as-base64 }}"
+  "avatar-b64": "{{ avatar-stream | stream-as-base64 }}"
 }
 ```
 
@@ -208,7 +215,10 @@ Content-Type: application/json
   "metadata-object": { "theme": "dark", "notifications": false },
   "username": "Generic User",
   "bio": "Software Engineer\nLikes \"South Park\"",
-  "avatar-path": "./images/profile.png"
+  "streams": [
+    { "type": "text", "content": "./images/profile.png" }
+  ],
+  "avatar-stream": { "type": "provided", "content": 0 }
 }
 ```
 
@@ -235,7 +245,7 @@ PUT /api/documents/{{ folder-name | url }}/{{ file-name | url }} HTTP/1.1
 Host: api.example.com
 Content-Type: application/octet-stream
 
-{{ document-path | file-as-is }}
+{{ document-stream | stream-as-is }}
 ```
 
 **`data.json` (The Hydration Context)**
@@ -243,7 +253,10 @@ Content-Type: application/octet-stream
 {
   "folder-name": "user uploads",
   "file-name": "report #1.pdf",
-  "document-path": "./docs/report.pdf"
+  "streams": [
+    { "type": "text", "content": "./docs/report.pdf" }
+  ],
+  "document-stream": { "type": "provided", "content": 0 }
 }
 ```
 
