@@ -1,33 +1,28 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const http = require('node:http');
 const { Buffer } = require('node:buffer');
 const { ReadableStream } = require('node:stream/web');
 const { executeWithCurl } = require('../src/commands/emit.js');
+const { createEchoServer, binarizeIr } = require('../../test-utils/index.js');
 
 test('executeWithCurl body type matrix', async () => {
-  let capturedRequest = null;
-  const server = http.createServer((req, res) => {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      capturedRequest = { method: req.method, body };
-      res.writeHead(200);
-      res.end();
-    });
-  });
+  const serverObj = await createEchoServer();
+  const port = serverObj.port;
 
-  await new Promise(resolve => server.listen(0, resolve));
-  const port = server.address().port;
-
-  async function runCase(bodyConfig, expectedBody, method = 'POST', bodyStream = null) {
+  async function runCase(bodyConfig, expectedContentString, method = 'POST', bodyStream = null) {
     const mockIR = {
       'schema-version': '1.0', method, host: `localhost:${port}`, uri: '/', version: 'HTTP/1.1', headers: []
     };
     if (bodyConfig !== undefined) mockIR.body = bodyConfig;
 
-    await executeWithCurl(mockIR, bodyStream, 'http');
-    assert.strictEqual(capturedRequest.body, expectedBody, `Failed on ${bodyConfig?.type || 'no body'}`);
+    const requestPromise = serverObj.nextRequest();
+
+    const p = executeWithCurl(mockIR, bodyStream, 'http');
+
+    const serverIR = await requestPromise;
+    const testIR = binarizeIr(mockIR, expectedContentString);
+    assert.deepEqual(serverIR, testIR);
+    await p;
   }
 
   try {
@@ -47,6 +42,6 @@ test('executeWithCurl body type matrix', async () => {
       /Unsupported httpt-ir body type: magic/
     );
   } finally {
-    server.close();
+    await serverObj.close();
   }
 });
