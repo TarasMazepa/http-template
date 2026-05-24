@@ -1,0 +1,1 @@
+mock binary stream content

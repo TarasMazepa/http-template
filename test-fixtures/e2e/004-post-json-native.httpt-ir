@@ -9,8 +9,7 @@
     "type": "json",
     "content": {
       "id": 123,
-      "enabled": true,
-      "tags": ["test", "native"]
+      "enabled": true
     }
   }
 }
