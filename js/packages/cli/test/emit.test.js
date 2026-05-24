@@ -17,7 +17,7 @@ test('executeWithCurl body type matrix', async () => {
 
     const requestPromise = serverObj.nextRequest();
 
-    const p = executeWithCurl(mockIR, bodyStream, 'http');
+    const p = executeWithCurl(mockIR, 'http', bodyStream);
 
     const serverIR = await requestPromise;
     const testIR = binarizeIr(mockIR, expectedContentString);
@@ -38,7 +38,7 @@ test('executeWithCurl body type matrix', async () => {
 
     // 6. Unknown Type
     await assert.rejects(
-      executeWithCurl({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, null, 'http'),
+      executeWithCurl({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, 'http', null),
       /Unsupported httpt-ir body type: magic/
     );
   } finally {

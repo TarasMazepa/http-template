@@ -6,7 +6,14 @@ const { executeWithFetch } = require('@httpt/core');
  * @typedef {import('@httpt/core/src/types').HttptIR} HttptIR
  */
 
-function executeWithCurl(ir, bodyStream, scheme) {
+/**
+ * Executes an httpt IR via curl.
+ * @param {HttptIR} ir
+ * @param {string} scheme - e.g., "https", "http"
+ * @param {import('node:stream').Readable | ReadableStream | null} [bodyStream=null]
+ * @returns {Promise<void>}
+ */
+function executeWithCurl(ir, scheme, bodyStream = null) {
   return new Promise((resolve, reject) => {
     const url = `${scheme}://${ir.host}${ir.uri}`;
     const args = ['-s', '-v', '-X', ir.method];
@@ -51,7 +58,13 @@ function executeWithCurl(ir, bodyStream, scheme) {
     if (hasBodyData) {
       if (buffer) {
         curlProc.stdin.end(buffer);
-        if (bodyStream) bodyStream.cancel();
+        if (bodyStream) {
+          if (typeof bodyStream.cancel === 'function') {
+            bodyStream.cancel(); // Web Stream
+          } else if (typeof bodyStream.destroy === 'function') {
+            bodyStream.destroy(); // Node Stream
+          }
+        }
       } else if (bodyStream) {
         Readable.fromWeb(bodyStream).pipe(curlProc.stdin);
       } else {
@@ -59,7 +72,13 @@ function executeWithCurl(ir, bodyStream, scheme) {
       }
     } else {
       curlProc.stdin.end();
-      if (bodyStream) bodyStream.cancel();
+      if (bodyStream) {
+        if (typeof bodyStream.cancel === 'function') {
+          bodyStream.cancel(); // Web Stream
+        } else if (typeof bodyStream.destroy === 'function') {
+          bodyStream.destroy(); // Node Stream
+        }
+      }
     }
   });
 }
