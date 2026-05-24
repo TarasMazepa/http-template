@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const { Buffer } = require('node:buffer');
 const { ReadableStream } = require('node:stream/web');
 const { dispatchFetch } = require('../src/dispatch.js');
-const { createEchoServer, binarizeIr } = require('../../test-utils/index.js');
+const { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer } = require('../../test-utils/index.js');
 
 test('dispatchFetch body type matrix', async () => {
   const serverObj = await createEchoServer();
@@ -51,33 +51,20 @@ test('E2E fixtures execution against echo server', async () => {
 
   // The E2E fixtures are located three directories up from this test file
   const fixturesDir = path.join(__dirname, '../../../../test-fixtures/e2e');
-
-  const files = fs.readdirSync(fixturesDir);
-  const irFiles = files.filter(f => f.endsWith('.httpt-ir'));
+  const fixtures = loadE2eFixtures(fixturesDir);
 
   try {
-    for (const irFile of irFiles) {
-      const irPath = path.join(fixturesDir, irFile);
-      const ir = JSON.parse(fs.readFileSync(irPath, 'utf8'));
+    for (const fixture of fixtures) {
+      const { irFile, ir, streamContent, streamFilePath } = fixture;
 
       // Override host to point to our local echo server
       ir.host = `localhost:${port}`;
 
       let bodyStream = null;
-      let streamContent = null;
 
-      // Strictly locate out-of-band streams using our new naming convention
-      if (ir.body && ir.body.type === 'provided') {
-        const streamIndex = ir.body.content !== undefined ? ir.body.content : 0;
-        const streamFileName = `${irFile}-provided-stream-${streamIndex}`;
-        const streamFilePath = path.join(fixturesDir, streamFileName);
-
-        if (fs.existsSync(streamFilePath)) {
-          // Load into memory purely for the binarizeIr assertion check
-          streamContent = fs.readFileSync(streamFilePath, 'utf8');
-          // Provide a live Web Stream to dispatchFetch (Node fetch requires Web Streams)
-          bodyStream = Readable.toWeb(fs.createReadStream(streamFilePath));
-        }
+      if (streamFilePath) {
+        // Provide a live Web Stream to dispatchFetch (Node fetch requires Web Streams)
+        bodyStream = Readable.toWeb(fs.createReadStream(streamFilePath));
       }
 
       const requestPromise = serverObj.nextRequest();
@@ -90,28 +77,7 @@ test('E2E fixtures execution against echo server', async () => {
       // We use binarizeIr to transform our source IR into that same expected format.
       const expectedIR = binarizeIr(ir, streamContent);
 
-      // Node fetch behavior normalization
-      if (['GET', 'HEAD'].includes(expectedIR.method)) {
-        delete expectedIR.body;
-      }
-
-      expectedIR.headers = expectedIR.headers.map(h => ({ name: h.name.toLowerCase(), value: h.value }));
-      serverIR.headers = serverIR.headers.map(h => ({ name: h.name.toLowerCase(), value: h.value }));
-
-      // The echo server ignores certain headers, so we must strip them from the expected IR
-      expectedIR.headers = expectedIR.headers.filter(h => {
-        const name = h.name.toLowerCase();
-        return name !== 'host' &&
-               name !== 'connection' &&
-               name !== 'accept' &&
-               name !== 'accept-language' &&
-               name !== 'sec-fetch-mode' &&
-               name !== 'user-agent' &&
-               name !== 'accept-encoding' &&
-               name !== 'content-length' &&
-               name !== 'content-type' &&
-               name !== 'transfer-encoding';
-      });
+      normalizeForEchoServer(expectedIR, serverIR, 'fetch');
 
       assert.deepEqual(serverIR, expectedIR, `E2E fixture execution failed for: ${irFile}`);
     }

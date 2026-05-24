@@ -1,5 +1,7 @@
 const http = require('node:http');
 const { Buffer } = require('node:buffer');
+const fs = require('node:fs');
+const path = require('node:path');
 
 /**
  * Starts an HTTP echo server on a random port.
@@ -103,4 +105,60 @@ function binarizeIr(ir, providedContent = null) {
   return result;
 }
 
-module.exports = { createEchoServer, binarizeIr };
+function loadE2eFixtures(fixturesDirPath) {
+  const files = fs.readdirSync(fixturesDirPath);
+  const irFiles = files.filter(f => f.endsWith('.httpt-ir'));
+
+  const fixtures = [];
+  for (const irFile of irFiles) {
+    const irPath = path.join(fixturesDirPath, irFile);
+    const ir = JSON.parse(fs.readFileSync(irPath, 'utf8'));
+
+    let streamContent = null;
+    let streamFilePath = null;
+
+    if (ir.body && ir.body.type === 'provided') {
+      const streamIndex = ir.body.content !== undefined ? ir.body.content : 0;
+      const streamFileName = `${irFile}-provided-stream-${streamIndex}`;
+      const potentialStreamPath = path.join(fixturesDirPath, streamFileName);
+
+      if (fs.existsSync(potentialStreamPath)) {
+        streamContent = fs.readFileSync(potentialStreamPath, 'utf8');
+        streamFilePath = potentialStreamPath;
+      }
+    }
+
+    fixtures.push({ irFile, ir, streamContent, streamFilePath });
+  }
+
+  return fixtures;
+}
+
+function normalizeForEchoServer(expectedIR, serverIR, adapterName) {
+  if (expectedIR.headers) {
+    expectedIR.headers = expectedIR.headers.map(h => ({ name: h.name.toLowerCase(), value: h.value }));
+    expectedIR.headers = expectedIR.headers.filter(h => {
+      const name = h.name.toLowerCase();
+      return name !== 'host' &&
+             name !== 'connection' &&
+             name !== 'accept' &&
+             name !== 'accept-language' &&
+             name !== 'sec-fetch-mode' &&
+             name !== 'user-agent' &&
+             name !== 'accept-encoding' &&
+             name !== 'content-length' &&
+             name !== 'content-type' &&
+             name !== 'transfer-encoding';
+    });
+  }
+
+  if (serverIR.headers) {
+    serverIR.headers = serverIR.headers.map(h => ({ name: h.name.toLowerCase(), value: h.value }));
+  }
+
+  if (adapterName === 'fetch' && ['GET', 'HEAD'].includes(expectedIR.method)) {
+    delete expectedIR.body;
+  }
+}
+
+module.exports = { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer };
