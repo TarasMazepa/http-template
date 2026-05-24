@@ -5,6 +5,6 @@
   "main": "index.js",
   "dependencies": {},
   "scripts": {
-    "test": "echo \"no tests\""
+    "test": "node --test"
   }
 }
