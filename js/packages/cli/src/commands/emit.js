@@ -1,6 +1,6 @@
 const { spawn } = require('node:child_process');
 const { Readable } = require('node:stream');
-const { executeWithFetch } = require('@httpt/core');
+const { dispatchFetch } = require('@httpt/core');
 
 /**
  * @typedef {import('@httpt/core/src/types').HttptIR} HttptIR
