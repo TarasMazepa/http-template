@@ -2,4 +2,4 @@ POST /json-native HTTP/1.1
 Host: api.example.com
 :httpt-body-type: json
 
-{"id": 123, "enabled": true, "tags": ["test", "native"]}
+{"id": 123, "enabled": true}
