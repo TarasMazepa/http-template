@@ -21,4 +21,12 @@
  * @property {HttptBody} [body]      - The optional request payload
  */
 
+/**
+ * @typedef {ReadableStream | import('node:stream').Readable | Buffer | Blob | File} NativeStream
+ */
+
+/**
+ * @typedef {string | NativeStream} Resolvable
+ */
+
 module.exports = {};
