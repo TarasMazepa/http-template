@@ -141,6 +141,45 @@ Content-Type: application/pdf
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
 ```
 
+### 1.3.4 Dynamic Header Injection
+
+The Hydration Stage supports dynamic header injection without requiring explicit template placeholders. The `data` context object reserves the `"headers"` keyword for this purpose.
+
+* **Dynamic Header Injection Mechanism** / Injects / a dynamic array of headers into the generated `.httpt-r` output without requiring explicit placeholders.
+
+If provided, the `"headers"` property must be an array of objects exactly matching the IR schema: `[{ "name": "Header-Name", "value": "Header-Value" }]`.
+
+**The Insertion Rule:** These headers MUST be appended to the very bottom of the existing headers block, exactly preceding the mandatory blank line (`\n\n` or `\r\n\r\n`) that separates the HTTP Head from the Body.
+
+#### 1.3.4.1 Example Usage
+
+Given a simple `GET` request:
+
+**Template (`request.httpt`):**
+```http
+GET /api/data HTTP/1.1
+Host: api.example.com
+```
+
+**Context Data (`data.json`):**
+```json
+{
+  "headers": [
+    { "name": "Authorization", "value": "Bearer token123" },
+    { "name": "X-Custom-Tracking", "value": "xyz789" }
+  ]
+}
+```
+
+**Output (`request.httpt-r`):**
+```http
+GET /api/data HTTP/1.1
+Host: api.example.com
+Authorization: Bearer token123
+X-Custom-Tracking: xyz789
+
+```
+
 ## 1.4 The Intermediate Representation (.httpt-ir)
 
 ### 1.4.1 The Intermediate Representation (IR)
@@ -414,7 +453,9 @@ Because the hydrated `.httpt-r` output is consumed by execution clients (e.g., `
 See the 'Source Mapping' subsection in the Processing Workflow (Section II) for the Index Shift Map implementation and rationale.
 
 ### 1.6.4 Design Exploration: The Identity Template
-An open area of exploration is the definition of a "Canonical Identity Template." This would be a specialized .httpt file designed to consume a full .httpt-ir object as its data context. The goal is to ensure that for any valid request r: Execute(Parse(r)) == r. This requires further thought on how to "splat" a collection of headers into the template without complex loop logic.
+A core goal of HTTP Template is the definition of a "Canonical Identity Template." This is a specialized `.httpt` file designed to consume a full `.httpt-ir` object as its data context. The goal is to ensure that for any valid request `r`: `Execute(Parse(r)) == r`.
+
+Previously, this was difficult due to the "header splatting" problem (injecting an unknown number of headers). However, the Dynamic Header Injection feature (Section 1.3.4) natively solves this. Because `hydrate` now natively consumes the exact `headers` array format produced by the Parse Stage, building an identity template is functionally possible without complex loop logic.
 
 
 # 2. HTTP Template SDK
