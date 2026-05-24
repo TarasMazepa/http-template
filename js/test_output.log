@@ -1,0 +1,375 @@
+
+> @httpt/cli@1.0.0 test
+> node --test
+
+TAP version 13
+# * Host localhost:43005 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:43005...
+# * Connected to localhost (::1) port 43005
+# > GET / HTTP/1.1
+# > Host: localhost:43005
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# >
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [108 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"GET","host":"localhost:43005","uri":"/","version":"HTTP/1.1","headers":[]}
+# * Host localhost:43005 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:43005...
+# * Connected to localhost (::1) port 43005
+# > POST / HTTP/1.1
+# > Host: localhost:43005
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 5
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [5 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [155 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:43005","uri":"/","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"aGVsbG8="}}
+# * Host localhost:43005 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:43005...
+# * Connected to localhost (::1) port 43005
+# > POST / HTTP/1.1
+# > Host: localhost:43005
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 6
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [6 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [155 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:43005","uri":"/","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"YmluYXJ5"}}
+# * Host localhost:43005 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:43005...
+# * Connected to localhost (::1) port 43005
+# > POST / HTTP/1.1
+# > Host: localhost:43005
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 13
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [13 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [167 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:43005","uri":"/","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"eyJmb28iOiJiYXIifQ=="}}
+# * Host localhost:43005 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:43005...
+# * Connected to localhost (::1) port 43005
+# > POST / HTTP/1.1
+# > Host: localhost:43005
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 8
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [8 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [159 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:43005","uri":"/","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"c3RyZWFtZWQ="}}
+# * Host localhost:43005 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:43005...
+# * Connected to localhost (::1) port 43005
+# > POST / HTTP/1.1
+# > Host: localhost:43005
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 21
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [21 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [175 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:43005","uri":"/","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"eyJsb29rcyI6Imxpa2UganNvbiJ9"}}
+# Subtest: dispatchCurl body type matrix
+ok 1 - dispatchCurl body type matrix
+  ---
+  duration_ms: 86.401529
+  type: 'test'
+  ...
+# * Host localhost:45485 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:45485...
+# * Connected to localhost (::1) port 45485
+# > GET /api/v1/search?q=term HTTP/1.1
+# > Host: localhost:45485
+# > User-Agent: curl/8.5.0
+# > Authorization: Bearer token123
+# > Accept: application/json
+# >
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [178 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"GET","host":"localhost:45485","uri":"/api/v1/search?q=term","version":"HTTP/1.1","headers":[{"name":"Authorization","value":"Bearer token123"}]}
+# * Host localhost:45485 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:45485...
+# * Connected to localhost (::1) port 45485
+# > POST /v1/users/update HTTP/1.1
+# > Host: localhost:45485
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Authorization: Bearer abc123xyz
+# > Content-Type: application/json
+# > Content-Length: 95
+# >
+# } [95 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [341 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:45485","uri":"/v1/users/update","version":"HTTP/1.1","headers":[{"name":"Authorization","value":"Bearer abc123xyz"}],"body":{"type":"base64","content":"ewogICJ1c2VyIHByZWZlcmVuY2VzIjogeyAidGhlbWUiOiAiZGFyayIsICJub3RpZmljYXRpb25zIjogZmFsc2UgfSwKICAibmFtZSI6ICJHZW5lcmljIFVzZXIiCn0="}}
+# * Host localhost:45485 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:45485...
+# * Connected to localhost (::1) port 45485
+# > POST /text-endpoint HTTP/1.1
+# > Host: localhost:45485
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 30
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [30 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [200 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:45485","uri":"/text-endpoint","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"VGhpcyBpcyBhbiBleHBsaWNpdCB0ZXh0IGJvZHku"}}
+# * Host localhost:45485 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:45485...
+# * Connected to localhost (::1) port 45485
+# > POST /json-native HTTP/1.1
+# > Host: localhost:45485
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 25
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [25 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [194 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:45485","uri":"/json-native","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"eyJpZCI6MTIzLCJlbmFibGVkIjp0cnVlfQ=="}}
+# * Host localhost:45485 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:45485...
+# * Connected to localhost (::1) port 45485
+# > POST /api/upload HTTP/1.1
+# > Host: localhost:45485
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Type: application/octet-stream
+# > Content-Length: 68
+# >
+# } [68 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [249 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:45485","uri":"/api/upload","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="}}
+# * Host localhost:45485 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:45485...
+# * Connected to localhost (::1) port 45485
+# > PUT /api/stream HTTP/1.1
+# > Host: localhost:45485
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Type: video/mp4
+# > Content-Length: 26
+# >
+# } [26 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [192 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"PUT","host":"localhost:45485","uri":"/api/stream","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"bW9jayBiaW5hcnkgc3RyZWFtIGNvbnRlbnQ="}}
+# * Host localhost:45485 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:45485...
+# * Connected to localhost (::1) port 45485
+# > POST /api/stream HTTP/1.1
+# > Host: localhost:45485
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 12
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [12 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [173 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"POST","host":"localhost:45485","uri":"/api/stream","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"dmFsaWQgc3RyZWFt"}}
+# * Host localhost:45485 was resolved.
+# * IPv6: ::1
+# * IPv4: 127.0.0.1
+# *   Trying [::1]:45485...
+# * Connected to localhost (::1) port 45485
+# > GET /search HTTP/1.1
+# > Host: localhost:45485
+# > User-Agent: curl/8.5.0
+# > Accept: */*
+# > Content-Length: 12
+# > Content-Type: application/x-www-form-urlencoded
+# >
+# } [12 bytes data]
+# < HTTP/1.1 200 OK
+# < Content-Type: application/json
+# < Date: Sun, 24 May 2026 20:20:35 GMT
+# < Connection: keep-alive
+# < Keep-Alive: timeout=5
+# < Transfer-Encoding: chunked
+# <
+# { [168 bytes data]
+# * Connection \#0 to host localhost left intact
+# {"schema-version":"1.0","method":"GET","host":"localhost:45485","uri":"/search","version":"HTTP/1.1","headers":[],"body":{"type":"base64","content":"Ym9keS1jb250ZW50"}}
+# Subtest: E2E fixtures execution against echo server
+ok 2 - E2E fixtures execution against echo server
+  ---
+  duration_ms: 99.330863
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 281.243739
+
+> @httpt/core@1.0.0 test
+> node --test
+
+TAP version 13
+# Subtest: dispatchFetch body type matrix
+ok 1 - dispatchFetch body type matrix
+  ---
+  duration_ms: 103.316755
+  type: 'test'
+  ...
+# Subtest: E2E fixtures execution against echo server
+ok 2 - E2E fixtures execution against echo server
+  ---
+  duration_ms: 40.659404
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 297.245611
+
+> @httpt/test-utils@1.0.0 test
+> echo "no tests"
+
+no tests

@@ -30,7 +30,7 @@ function dispatchCurl(ir, scheme, bodyStream = null) {
     let buffer = null;
     let hasBodyData = false;
 
-    if (ir.body && !['GET', 'HEAD'].includes(ir.method)) {
+    if (ir.body) {
       hasBodyData = true;
       if (ir.body.type === 'text') {
         buffer = Buffer.from(ir.body.content, 'utf-8');
@@ -66,7 +66,13 @@ function dispatchCurl(ir, scheme, bodyStream = null) {
           }
         }
       } else if (bodyStream) {
-        Readable.fromWeb(bodyStream).pipe(curlProc.stdin);
+        if (typeof bodyStream.cancel === 'function') {
+          // Web stream
+          Readable.fromWeb(bodyStream).pipe(curlProc.stdin);
+        } else {
+          // Node stream
+          bodyStream.pipe(curlProc.stdin);
+        }
       } else {
         curlProc.stdin.end();
       }
