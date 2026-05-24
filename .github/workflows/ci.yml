@@ -21,6 +21,7 @@ jobs:
         with:
           node-version: '24'
 
+      - run: node ../test-fixtures/verify.js
       - run: npm ci
 
       - run: npm test

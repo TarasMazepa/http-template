@@ -1,0 +1,6 @@
+POST /api/upload HTTP/1.1
+Host: api.example.com
+Content-Type: application/octet-stream
+:httpt-body-type: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=
