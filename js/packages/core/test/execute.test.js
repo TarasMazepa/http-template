@@ -15,7 +15,7 @@ test('executeWithFetch body type matrix', async () => {
     };
     if (bodyConfig !== undefined) mockIR.body = bodyConfig;
 
-    const res = await executeWithFetch(mockIR, bodyStream, 'http');
+    const res = await executeWithFetch(mockIR, 'http', bodyStream);
     const serverIR = await res.json();
 
     const testIR = binarizeIr(mockIR, expectedContentString);
@@ -34,7 +34,7 @@ test('executeWithFetch body type matrix', async () => {
     await runCase({ type: 'text', content: '{"looks":"like json"}' }, '{"looks":"like json"}');
 
     await assert.rejects(
-      executeWithFetch({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, null, 'http'),
+      executeWithFetch({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, 'http', null),
       /Unsupported httpt-ir body type: magic/
     );
   } finally {

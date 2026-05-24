@@ -5,11 +5,11 @@
 /**
  * Executes an httpt IR via the native fetch API.
  * @param {HttptIR} ir
- * @param {ReadableStream | null} bodyStream
  * @param {string} scheme - e.g., "https", "http"
+ * @param {ReadableStream | null} [bodyStream=null]
  * @returns {Promise<Response>}
  */
-async function executeWithFetch(ir, bodyStream, scheme) {
+async function executeWithFetch(ir, scheme, bodyStream = null) {
   const url = new URL(ir.uri, `${scheme}://${ir.host}`).toString();
   const headers = new Headers();
   for (const { name, value } of ir.headers) headers.append(name, value);
