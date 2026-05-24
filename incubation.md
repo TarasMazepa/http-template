@@ -180,6 +180,14 @@ X-Custom-Tracking: xyz789
 
 ```
 
+### 1.3.5 Dynamic Body Injection
+
+The `"body"` key is a reserved keyword in the `data` context object. It must strictly adhere to the `StreamDefinition` schema (`{ "type": "...", "content": "..." }`).
+
+* **Dynamic Body Injection Mechanism** / Injects / the pseudo-header `:httpt-body-type: ${data.body.type}` into the HTTP Head (using the same lookahead buffer mechanism as dynamic headers) if `data.body` is present, and then appends the body content after the double-newline boundary.
+* **Strict Conflict Prevention:** If `data.body` is provided, the source `.httpt` template MUST NOT contain its own body.
+* **Implementation Note (O(1) Collision Detection):** To maintain the single-pass memory footprint, the state machine should transition to a 'Body' state after the double-newline. If it reads any non-whitespace character from the source template while in this state AND `data.body` is defined, it must immediately throw a `BodyConflictError`.
+
 ## 1.4 The Intermediate Representation (.httpt-ir)
 
 ### 1.4.1 The Intermediate Representation (IR)
@@ -455,7 +463,17 @@ See the 'Source Mapping' subsection in the Processing Workflow (Section II) for 
 ### 1.6.4 Design Exploration: The Identity Template
 A core goal of HTTP Template is the definition of a "Canonical Identity Template." This is a specialized `.httpt` file designed to consume a full `.httpt-ir` object as its data context. The goal is to ensure that for any valid request `r`: `Execute(Parse(r)) == r`.
 
-Previously, this was difficult due to the "header splatting" problem (injecting an unknown number of headers). However, the Dynamic Header Injection feature (Section 1.3.4) natively solves this. Because `hydrate` now natively consumes the exact `headers` array format produced by the Parse Stage, building an identity template is functionally possible without complex loop logic.
+This problem is now functionally complete and solved. Because `hydrate` natively consumes both `headers` and `body` dynamically from the IR schema, the Canonical Identity Template requires zero complex conditional logic.
+
+The final, exact Canonical Identity Template is as follows:
+
+```http
+{{ method | raw }} {{ uri | raw }} {{ version | raw }}
+Host: {{ host | raw }}
+
+```
+
+This simple 2-line template, when hydrated with an IR JSON context, will perfectly reconstruct any valid HTTP request ($Execute(Parse(r)) == r$) including dynamic headers, binary streams, and bodyless `GET` requests.
 
 
 # 2. HTTP Template SDK
