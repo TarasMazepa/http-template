@@ -507,6 +507,25 @@ const data = {
 const hydrated = await hydrate(templateStream, data);
 ```
 
+## 2.5 SDK API Reference
+
+### 2.5.1 The Core Pipeline (Low-Level)
+* **`hydrate(template: Resolvable, data: Object, streams: NativeStream[]) -> { resolved: String | Stream, map: Array, bodyStream: NativeStream | null }`**:
+  * *Description:* The state machine. Executes single-pass substitution, materializes metadata streams, concatenates body streams, and generates the Index Shift Map.
+* **`parse(resolved: Stream | String, optionalBodyStream: NativeStream | null) -> { ir: Object, bodyStream: NativeStream | null }`**:
+  * *Description:* The boundary deconstructor. Scans for the `\n\n` boundary, constructs the HTTP Head, consumes `:httpt-body-type`, and hands off the unread body stream.
+* **`execute* (Execution Adapters)`**:
+  * *Description:* A suite of environment-specific target execution functions. Note that `bodyStream` is nullable because text/JSON bodies are passed directly inside the `ir` object.
+  * `executeFetch(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Maps IR to the Web API `fetch()` configuration.
+  * `executeDart(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Maps IR to `dart:io` `HttpClient`.
+  * `executeCurl(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Translates IR into `curl` command-line arguments and spawns a sub-process.
+
+### 2.5.2 Core SDK Methods (The Facade)
+* **`build(template: Resolvable, data: Object, streams: NativeStream[] = []) -> { ir: Object, map: Array, bodyStream: NativeStream | null }`**:
+  * *Description:* Orchestrates `hydrate` + `parse`. While the Smart Hydrator can extract streams from the `data` object automatically, users can also explicitly provide the `streams` array. Returns the structured Intermediate Representation (IR), the Index Shift Map, and the O(1) body stream. Ideal for developers bringing their own HTTP clients (e.g., Axios).
+* **`execute(template: Resolvable, data: Object, streams: NativeStream[] = [], config: Object) -> Promise<Response>`**:
+  * *Description:* The ultimate single-entry point. Orchestrates `hydrate` -> `parse` -> `executeTarget`. The `config` object handles out-of-band network requirements (e.g., `{ scheme: 'https' }`). The user provides a template, data, and optional streams, and receives a standard HTTP Response object back with all streaming handled transparently.
+
 
 # 3. Future Explorations
 
