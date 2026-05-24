@@ -47,13 +47,16 @@ for (const base of baseNames) {
     }
   }
 
-  // 3. Claim stream files (e.g., 001-simple-get-stream-0.pdf)
-  const streamRegex = new RegExp(`^${base}-stream-\\d+`);
-  const streamFiles = allFiles.filter(f => streamRegex.test(f));
-  streamFiles.forEach(f => {
-    claimedFiles.add(f);
-    success(`Found stream file: ${f}`);
-  });
+  // 3. Claim stream files for each required file (e.g., 006-post-provided.httpt-ir-provided-stream-0)
+  for (const ext of requiredFiles) {
+    const fileName = `${base}${ext}`;
+    const streamRegex = new RegExp(`^${fileName.replace(/\./g, '\\.')}-provided-stream-\\d+$`);
+    const streamFiles = allFiles.filter(f => streamRegex.test(f));
+    streamFiles.forEach(f => {
+      claimedFiles.add(f);
+      success(`Found stream file: ${f}`);
+    });
+  }
 }
 
 // 4. Check for orphans (files that don't belong to any suite)
