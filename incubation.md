@@ -514,11 +514,11 @@ const hydrated = await hydrate(templateStream, data);
   * *Description:* The state machine. Executes single-pass substitution, materializes metadata streams, concatenates body streams, and generates the Index Shift Map.
 * **`parse(resolved: Stream | String, optionalBodyStream: NativeStream | null) -> { ir: Object, bodyStream: NativeStream | null }`**:
   * *Description:* The boundary deconstructor. Scans for the `\n\n` boundary, constructs the HTTP Head, consumes `:httpt-body-type`, and hands off the unread body stream.
-* **`execute* (Execution Adapters)`**:
+* **`dispatch* (Execution Adapters)`**:
   * *Description:* A suite of environment-specific target execution functions. Note that `bodyStream` is nullable because text/JSON bodies are passed directly inside the `ir` object.
-  * `executeFetch(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Maps IR to the Web API `fetch()` configuration.
-  * `executeDart(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Maps IR to `dart:io` `HttpClient`.
-  * `executeCurl(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Translates IR into `curl` command-line arguments and spawns a sub-process.
+  * `dispatchFetch(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Maps IR to the Web API `fetch()` configuration.
+  * `dispatchDart(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Maps IR to `dart:io` `HttpClient`.
+  * `dispatchCurl(ir: Object, scheme: String, bodyStream: NativeStream | null)`: Translates IR into `curl` command-line arguments and spawns a sub-process.
 
 ### 2.5.2 Core SDK Methods (The Facade)
 * **`build(template: Resolvable, data: Object, streams: NativeStream[] = []) -> { ir: Object, map: Array, bodyStream: NativeStream | null }`**:
