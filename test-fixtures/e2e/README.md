@@ -71,7 +71,7 @@ The parser must strictly split at the *first* occurrence of a double-newline.
 A complete test case consists of six files:
 * `*.httpt` : Source template.
 * `*.data.json` : Pure configuration variables (strictly no stream references).
-* `*-stream-Y` : Stream file containing raw binary or text data. The integer `Y` in the filename directly correlates to the integer `content` index in the `StreamDefinition` (e.g., `005-stream-0`, `005-stream-1`).
+* `[exact-referencing-filename]-provided-stream-[index]` : Stream file containing raw binary or text data, strictly with NO file extensions. The integer `[index]` in the filename directly correlates to the integer `content` index in the `StreamDefinition`. For example, if a stream is referenced in `006-post-provided.httpt-ir`, the stream file MUST be named `006-post-provided.httpt-ir-provided-stream-0`. If it is referenced in `004.data.json`, it MUST be named `004.data.json-provided-stream-0`.
 * `*.httpt-r` : The hydrated request (resolved).
 * `*.httpt-ir` : Expected Intermediate Representation (IR).
 * `*.httpt-map` : Index Shift Map.
@@ -79,7 +79,7 @@ A complete test case consists of six files:
 ### Workflow & Hydration Signature
 
 * The testing workflow uses the mandatory hydration signature: `hydrate(template, data, nativeStreamsArray)`.
-* The test runner MUST sequentially attempt to read `XXX-stream-0`, `XXX-stream-1`, etc. For each found file, it loads it into memory as a **native I/O object** (e.g., `Buffer` or `ReadableStream`), and passes the resulting array as the third argument: `hydrate(template, data, nativeStreamsArray)`.
+* The test runner must look for streams bound explicitly to the file it is currently processing (e.g., loading `data.json` streams for `hydrate()`, and `httpt-ir` streams for `execute()`). It MUST sequentially attempt to read the stream files using the new naming convention (e.g. `[exact-referencing-filename]-provided-stream-0`). For each found file, it loads it into memory as a **native I/O object** (e.g., `Buffer` or `ReadableStream`), and passes the resulting array as the third argument: `hydrate(template, data, nativeStreamsArray)`.
 
 ### Master Specification Rules (Hardened Logic)
 
