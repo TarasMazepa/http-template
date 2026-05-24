@@ -1,19 +1,19 @@
 const { spawn } = require('node:child_process');
 const { Readable } = require('node:stream');
-const { executeFetch } = require('@httpt/core');
+const { dispatchFetch } = require('@httpt/core');
 
 /**
  * @typedef {import('@httpt/core/src/types').HttptIR} HttptIR
  */
 
 /**
- * Executes an httpt IR via curl.
+ * Dispatches an httpt IR via curl.
  * @param {HttptIR} ir
  * @param {string} scheme - e.g., "https", "http"
  * @param {import('node:stream').Readable | ReadableStream | null} [bodyStream=null]
  * @returns {Promise<void>}
  */
-function executeCurl(ir, scheme, bodyStream = null) {
+function dispatchCurl(ir, scheme, bodyStream = null) {
   return new Promise((resolve, reject) => {
     const url = `${scheme}://${ir.host}${ir.uri}`;
     const args = ['-s', '-v', '-X', ir.method];
@@ -87,4 +87,4 @@ function emitCommand(file, flags) {
   // TODO: Read parsed IR, handle the --target <curl|fetch> flag, and call the respective executor.
   console.log(`[emit] Executing on file: ${file} with flags: ${JSON.stringify(flags)}`);
 }
-module.exports = { emitCommand, executeCurl };
+module.exports = { emitCommand, dispatchCurl };

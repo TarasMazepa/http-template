@@ -2,10 +2,10 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { Buffer } = require('node:buffer');
 const { ReadableStream } = require('node:stream/web');
-const { executeCurl } = require('../src/commands/emit.js');
+const { dispatchCurl } = require('../src/commands/emit.js');
 const { createEchoServer, binarizeIr } = require('../../test-utils/index.js');
 
-test('executeCurl body type matrix', async () => {
+test('dispatchCurl body type matrix', async () => {
   const serverObj = await createEchoServer();
   const port = serverObj.port;
 
@@ -17,7 +17,7 @@ test('executeCurl body type matrix', async () => {
 
     const requestPromise = serverObj.nextRequest();
 
-    const p = executeCurl(mockIR, 'http', bodyStream);
+    const p = dispatchCurl(mockIR, 'http', bodyStream);
 
     const serverIR = await requestPromise;
     const testIR = binarizeIr(mockIR, expectedContentString);
@@ -38,7 +38,7 @@ test('executeCurl body type matrix', async () => {
 
     // 6. Unknown Type
     await assert.rejects(
-      executeCurl({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, 'http', null),
+      dispatchCurl({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, 'http', null),
       /Unsupported httpt-ir body type: magic/
     );
   } finally {

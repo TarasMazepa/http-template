@@ -1,5 +1,5 @@
 const { hydrate, parse } = require('./pipeline');
-const { executeFetch } = require('./execute');
+const { dispatchFetch } = require('./dispatch');
 
 async function build(template, data, streams = []) {
   return { ir: {}, map: [], bodyStream: null };

@@ -2,10 +2,10 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { Buffer } = require('node:buffer');
 const { ReadableStream } = require('node:stream/web');
-const { executeFetch } = require('../src/execute.js');
+const { dispatchFetch } = require('../src/dispatch.js');
 const { createEchoServer, binarizeIr } = require('../../test-utils/index.js');
 
-test('executeFetch body type matrix', async () => {
+test('dispatchFetch body type matrix', async () => {
   const serverObj = await createEchoServer();
   const port = serverObj.port;
 
@@ -15,7 +15,7 @@ test('executeFetch body type matrix', async () => {
     };
     if (bodyConfig !== undefined) mockIR.body = bodyConfig;
 
-    const res = await executeFetch(mockIR, 'http', bodyStream);
+    const res = await dispatchFetch(mockIR, 'http', bodyStream);
     const serverIR = await res.json();
 
     const testIR = binarizeIr(mockIR, expectedContentString);
@@ -34,7 +34,7 @@ test('executeFetch body type matrix', async () => {
     await runCase({ type: 'text', content: '{"looks":"like json"}' }, '{"looks":"like json"}');
 
     await assert.rejects(
-      executeFetch({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, 'http', null),
+      dispatchFetch({ method: 'POST', host: `localhost:${port}`, uri: '/', headers: [], body: { type: 'magic' } }, 'http', null),
       /Unsupported httpt-ir body type: magic/
     );
   } finally {

@@ -1,9 +1,9 @@
 const { hydrate, parse } = require('./src/pipeline');
 const { build, execute } = require('./src/facade');
-const { executeFetch } = require('./src/execute');
+const { dispatchFetch } = require('./src/dispatch');
 
 module.exports = {
   hydrate, parse,
   build, execute,
-  executeFetch
+  dispatchFetch
 };
