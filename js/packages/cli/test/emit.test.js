@@ -1,4 +1,4 @@
-const { test } = require('node:test');
+const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
 const { Buffer } = require('node:buffer');
 const { ReadableStream } = require('node:stream/web');
@@ -7,15 +7,26 @@ const path = require('node:path');
 const { dispatchCurl } = require('../src/commands/emit.js');
 const { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer } = require('../../test-utils/index.js');
 
-test('E2E fixtures execution against echo server', async () => {
-  const serverObj = await createEchoServer();
-  const port = serverObj.port;
+describe('E2E fixtures execution against echo server', () => {
+  let serverObj;
+  let port;
+
+  before(async () => {
+    serverObj = await createEchoServer();
+    port = serverObj.port;
+  });
+
+  after(async () => {
+    if (serverObj) {
+      await serverObj.close();
+    }
+  });
 
   const fixturesDir = path.join(__dirname, '../../../../test-fixtures/e2e');
   const fixtures = loadE2eFixtures(fixturesDir);
 
-  try {
-    for (const fixture of fixtures) {
+  for (const fixture of fixtures) {
+    it(`should execute ${fixture.irFile} correctly`, async () => {
       const { irFile, ir, streamContent, streamFilePath } = fixture;
 
       ir.host = `localhost:${port}`;
@@ -38,8 +49,6 @@ test('E2E fixtures execution against echo server', async () => {
       normalizeForEchoServer(expectedIR, serverIR, 'curl');
 
       assert.deepEqual(serverIR, expectedIR, `E2E fixture execution failed for: ${irFile}`);
-    }
-  } finally {
-    await serverObj.close();
+    });
   }
 });
