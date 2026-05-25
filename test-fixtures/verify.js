@@ -1,73 +1,54 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
+const { test } = require('node:test');
+const assert = require('node:assert');
 
 const E2E_DIR = path.join(__dirname, 'e2e');
-let hasErrors = false;
 
-function error(msg) {
-  console.error(`❌ ${msg}`);
-  hasErrors = true;
-}
+test('E2E Fixtures Verification', () => {
+  const allFiles = fs.readdirSync(E2E_DIR).filter(f => f !== 'README.md');
+  const claimedFiles = new Set();
 
-function success(msg) {
-  console.log(`✅ ${msg}`);
-}
+  // 1. Identify all suites by their .httpt template
+  const baseNames = allFiles
+    .filter(f => f.endsWith('.httpt'))
+    .map(f => f.replace('.httpt', ''));
 
-const allFiles = fs.readdirSync(E2E_DIR).filter(f => f !== 'README.md');
-const claimedFiles = new Set();
+  // 2. Verify each suite
+  for (const base of baseNames) {
+    const requiredFiles = ['.httpt', '.data.json', '.httpt-r', '.httpt-ir', '.httpt-map'];
+    const jsonFiles = ['.data.json', '.httpt-ir', '.httpt-map'];
 
-// 1. Identify all suites by their .httpt template
-const baseNames = allFiles
-  .filter(f => f.endsWith('.httpt'))
-  .map(f => f.replace('.httpt', ''));
+    for (const ext of requiredFiles) {
+      const fileName = `${base}${ext}`;
+      const filePath = path.join(E2E_DIR, fileName);
+      claimedFiles.add(fileName);
 
-// 2. Verify each suite
-for (const base of baseNames) {
-  console.log(`\nVerifying Suite: ${base}`);
-
-  const requiredFiles = ['.httpt', '.data.json', '.httpt-r', '.httpt-ir', '.httpt-map'];
-  const jsonFiles = ['.data.json', '.httpt-ir', '.httpt-map'];
-
-  for (const ext of requiredFiles) {
-    const fileName = `${base}${ext}`;
-    const filePath = path.join(E2E_DIR, fileName);
-    claimedFiles.add(fileName);
-
-    if (!fs.existsSync(filePath)) {
-      error(`Missing required file: ${fileName}`);
-    } else if (jsonFiles.includes(ext)) {
-      try {
-        JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        success(`${fileName} is valid JSON.`);
-      } catch (e) {
-        error(`Invalid JSON in ${fileName}: ${e.message}`);
+      if (!fs.existsSync(filePath)) {
+        assert.fail(`Missing required file: ${fileName}`);
+      } else if (jsonFiles.includes(ext)) {
+        try {
+          JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        } catch (e) {
+          assert.fail(`Invalid JSON in ${fileName}: ${e.message}`);
+        }
       }
-    } else {
-      success(`${fileName} exists.`);
+    }
+
+    // 3. Claim stream files for each required file (e.g., 006-post-provided.httpt-ir-provided-stream-0)
+    for (const ext of requiredFiles) {
+      const fileName = `${base}${ext}`;
+      const streamRegex = new RegExp(`^${fileName.replace(/\./g, '\\.')}-provided-stream-\\d+$`);
+      const streamFiles = allFiles.filter(f => streamRegex.test(f));
+      streamFiles.forEach(f => {
+        claimedFiles.add(f);
+      });
     }
   }
 
-  // 3. Claim stream files for each required file (e.g., 006-post-provided.httpt-ir-provided-stream-0)
-  for (const ext of requiredFiles) {
-    const fileName = `${base}${ext}`;
-    const streamRegex = new RegExp(`^${fileName.replace(/\./g, '\\.')}-provided-stream-\\d+$`);
-    const streamFiles = allFiles.filter(f => streamRegex.test(f));
-    streamFiles.forEach(f => {
-      claimedFiles.add(f);
-      success(`Found stream file: ${f}`);
-    });
+  // 4. Check for orphans (files that don't belong to any suite)
+  const orphans = allFiles.filter(f => !claimedFiles.has(f));
+  if (orphans.length > 0) {
+    assert.fail(`Found orphaned or improperly named files in e2e/: ${orphans.join(', ')}`);
   }
-}
-
-// 4. Check for orphans (files that don't belong to any suite)
-const orphans = allFiles.filter(f => !claimedFiles.has(f));
-if (orphans.length > 0) {
-  error(`Found orphaned or improperly named files in e2e/: ${orphans.join(', ')}`);
-}
-
-if (hasErrors) {
-  console.error('\n❌ Verification Failed. Please fix the errors above.');
-  process.exit(1);
-} else {
-  console.log(`\n🎉 All ${baseNames.length} test suites verified successfully!`);
-}
+});
