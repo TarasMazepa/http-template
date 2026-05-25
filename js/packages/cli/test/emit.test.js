@@ -1,9 +1,6 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { Buffer } = require('node:buffer');
-const { ReadableStream } = require('node:stream/web');
 const fs = require('node:fs');
-const path = require('node:path');
 const { dispatchCurl } = require('../src/commands/emit.js');
 const { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer } = require('@httpt/test-utils');
 
