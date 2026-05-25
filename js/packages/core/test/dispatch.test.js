@@ -23,9 +23,7 @@ describe('E2E fixtures execution against echo server', () => {
     }
   });
 
-  // The E2E fixtures are located three directories up from this test file
-  const fixturesDir = path.join(__dirname, '../../../../test-fixtures/e2e');
-  const fixtures = loadE2eFixtures(fixturesDir);
+  const fixtures = loadE2eFixtures();
 
   for (const fixture of fixtures) {
     it(`should execute ${fixture.irFile} correctly`, async () => {

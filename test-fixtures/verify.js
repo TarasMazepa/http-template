@@ -2,8 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
 const assert = require('node:assert');
-
-const E2E_DIR = path.join(__dirname, 'e2e');
+const { E2E_DIR } = require('../js/packages/test-utils/index.js');
 
 test('E2E Fixtures Verification', () => {
   const allFiles = fs.readdirSync(E2E_DIR).filter(f => f !== 'README.md' && f !== 'TEST_MATRIX.md');

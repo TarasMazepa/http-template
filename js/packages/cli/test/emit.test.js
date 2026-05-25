@@ -22,8 +22,7 @@ describe('E2E fixtures execution against echo server', () => {
     }
   });
 
-  const fixturesDir = path.join(__dirname, '../../../../test-fixtures/e2e');
-  const fixtures = loadE2eFixtures(fixturesDir);
+  const fixtures = loadE2eFixtures();
 
   for (const fixture of fixtures) {
     it(`should execute ${fixture.irFile} correctly`, async () => {
