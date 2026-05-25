@@ -1,10 +1,7 @@
 const fs = require('node:fs');
-const path = require('node:path');
 const { Readable } = require('node:stream');
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
-const { Buffer } = require('node:buffer');
-const { ReadableStream } = require('node:stream/web');
 const { dispatchFetch } = require('../src/dispatch.js');
 const { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer } = require('@httpt/test-utils');
 
