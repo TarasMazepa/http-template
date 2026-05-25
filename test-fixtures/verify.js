@@ -15,8 +15,14 @@ test('E2E Fixtures Verification', () => {
 
   // 2. Verify each suite
   for (const base of baseNames) {
-    const requiredFiles = ['.httpt', '.data.json', '.httpt-r', '.httpt-ir', '.httpt-map'];
-    const jsonFiles = ['.data.json', '.httpt-ir', '.httpt-map'];
+    const isErrorFixture = fs.existsSync(path.join(E2E_DIR, `${base}.error.json`));
+    let requiredFiles = ['.httpt', '.data.json', '.httpt-r', '.httpt-ir', '.httpt-map'];
+    if (isErrorFixture) {
+      requiredFiles = ['.httpt', '.data.json', '.error.json'];
+      claimedFiles.add(`${base}.error.json`);
+    }
+
+    const jsonFiles = ['.data.json', '.httpt-ir', '.httpt-map', '.error.json'];
 
     for (const ext of requiredFiles) {
       const fileName = `${base}${ext}`;

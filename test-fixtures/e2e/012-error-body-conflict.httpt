@@ -1,0 +1,4 @@
+POST /api/conflict HTTP/1.1
+Host: api.example.com
+
+body that will cause conflict

@@ -1,0 +1,10 @@
+{
+  "method": "PATCH",
+  "uri": "/api/identity",
+  "version": "HTTP/1.1",
+  "host": "identity.example.com",
+  "headers": [
+    { "name": "Content-Type", "value": "application/json" }
+  ],
+  "body": { "type": "provided", "content": 0 }
+}

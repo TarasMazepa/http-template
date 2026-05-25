@@ -13,10 +13,10 @@ This ledger maps our test fixtures to the 7 testing dimensions defined in the `R
 | `007-conflict-provided-body` | 1. Body Type | Verifying shadowed body text is ignored. | ✅ Implemented |
 | `008-boundary-unix-lf` | 2. Boundary | Parsing with `\n\n` instead of CRLF. | ✅ Implemented |
 | **Phase 1: Dynamic Injection & Identity** | | | |
-| `009-dynamic-headers` | 7. Dynamic Injection | Injecting `data.headers` before the boundary. | 🚧 Planned |
-| `010-dynamic-body` | 7. Dynamic Injection | Injecting `data.body` stream and pseudo-header. | 🚧 Planned |
-| `011-identity-template` | 7. Dynamic Injection | 2-line template parsing a full IR context. | 🚧 Planned |
-| `012-error-body-conflict` | 7. Dynamic Injection | `BodyConflictError` when template has a body. | 🚧 Planned |
+| `009-dynamic-headers` | 7. Dynamic Injection | Injecting `data.headers` before the boundary. | ✅ Implemented |
+| `010-dynamic-body` | 7. Dynamic Injection | Injecting `data.body` stream and pseudo-header. | ✅ Implemented |
+| `011-identity-template` | 7. Dynamic Injection | 2-line template parsing a full IR context. | ✅ Implemented |
+| `012-error-body-conflict` | 7. Dynamic Injection | `BodyConflictError` when template has a body. | ✅ Implemented |
 | **Phase 2: Boundaries & Header Edge Cases** | | | |
 | `013-minimalist-boundary` | 2. Boundary | Request line immediately followed by double-newline. | 🚧 Planned |
 | `014-body-junk` | 2. Boundary | Body containing its own double-newlines. | 🚧 Planned |

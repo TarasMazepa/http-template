@@ -1,0 +1,2 @@
+{{ method | raw }} {{ uri | raw }} {{ version | raw }}
+Host: {{ host | raw }}

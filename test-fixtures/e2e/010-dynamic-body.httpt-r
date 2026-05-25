@@ -1,0 +1,4 @@
+POST /api/upload HTTP/1.1
+Host: api.example.com
+Content-Type: text/plain
+:httpt-body-type: provided
