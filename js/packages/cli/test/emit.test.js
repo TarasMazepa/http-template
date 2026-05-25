@@ -5,7 +5,7 @@ const { ReadableStream } = require('node:stream/web');
 const fs = require('node:fs');
 const path = require('node:path');
 const { dispatchCurl } = require('../src/commands/emit.js');
-const { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer } = require('../../test-utils/index.js');
+const { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer } = require('@httpt/test-utils');
 
 describe('E2E fixtures execution against echo server', () => {
   let serverObj;

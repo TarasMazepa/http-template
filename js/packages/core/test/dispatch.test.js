@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const { Buffer } = require('node:buffer');
 const { ReadableStream } = require('node:stream/web');
 const { dispatchFetch } = require('../src/dispatch.js');
-const { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer } = require('../../test-utils/index.js');
+const { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer } = require('@httpt/test-utils');
 
 describe('E2E fixtures execution against echo server', () => {
   let serverObj;
