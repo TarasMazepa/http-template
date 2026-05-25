@@ -8,7 +8,7 @@ This directory contains the test vectors for the **Parse Stage** of the [HTTP Te
 
 ## Multistep Verification
 These fixtures are designed for granular or full-lifecycle testing:
-1. **Hydration Stage:** Verify that `.httpt` + `.data.json` produces `.httpt-r` and the `.httpt-map`.
+1. **Hydration Stage:** Verify that `.httpt` + `.data.json` produces `.httpt-r` and the `.httpt-map`. This stage must now also evaluate error-throwing scenarios (like `BodyConflictError`) when strict data contracts are violated.
 2. **Parse Stage:** Verify that `.httpt-r` deconstructs into the `.httpt-ir`.
 3. **Mapping Integrity:** Verify that a character index in `.httpt-r` can be accurately mapped back to the `.httpt` source using the `.httpt-map`.
 
@@ -63,6 +63,13 @@ The parser must strictly split at the *first* occurrence of a double-newline.
 * **HTTP Versions:** Validating `HTTP/1.1`, `HTTP/1.0`, and `HTTP/2.0` (as a string).
 * **Spacing:** Handling extra spaces between Method, URI, and Version.
 * **Special URIs:** Absolute URIs in the request line vs. relative paths.
+
+## 7. Dynamic Injection & Hydration Mechanics
+
+* **Dynamic Headers:** Verify that an array provided in `data.headers` is automatically injected into the HTTP Head, correctly formatted, and placed exactly before the first double-newline boundary.
+* **Dynamic Body:** Verify that a StreamDefinition provided in `data.body` automatically injects the `:httpt-body-type:` pseudo-header into the Head and appends the body content after the double-newline boundary.
+* **Strict Collision (BodyConflictError):** Verify that if `data.body` is provided, and the source `.httpt` template contains any non-whitespace characters after its double-newline boundary, the hydrator immediately throws a `BodyConflictError`.
+* **The Identity Template:** Verify that hydrating the minimal Canonical Identity Template (`{{ method | raw }} {{ uri | raw }}...`) with a full `.httpt-ir` JSON context perfectly reconstructs the original request seamlessly.
 
 ## Test Runner Specification
 
