@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const E2E_DIR = path.join(__dirname, 'e2e');
 
 test('E2E Fixtures Verification', () => {
-  const allFiles = fs.readdirSync(E2E_DIR).filter(f => f !== 'README.md');
+  const allFiles = fs.readdirSync(E2E_DIR).filter(f => f !== 'README.md' && f !== 'TEST_MATRIX.md');
   const claimedFiles = new Set();
 
   // 1. Identify all suites by their .httpt template
