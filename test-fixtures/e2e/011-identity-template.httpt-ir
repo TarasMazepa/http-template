@@ -1,0 +1,14 @@
+{
+  "schema-version": "1.0",
+  "method": "PATCH",
+  "host": "identity.example.com",
+  "uri": "/api/identity",
+  "version": "HTTP/1.1",
+  "headers": [
+    { "name": "Content-Type", "value": "application/json" }
+  ],
+  "body": {
+    "type": "provided",
+    "content": 0
+  }
+}
