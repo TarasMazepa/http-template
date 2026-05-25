@@ -1,0 +1,7 @@
+POST /api/junk HTTP/1.1
+Host: example.com
+
+This body has a
+double-newline right here:
+
+and it should be preserved as part of the body.

@@ -1,0 +1,11 @@
+{
+  "schema-version": "1.0",
+  "method": "GET",
+  "host": "example.com",
+  "uri": "/api/cookies",
+  "version": "HTTP/1.1",
+  "headers": [
+    { "name": "Set-Cookie", "value": "session=123" },
+    { "name": "Set-Cookie", "value": "user=abc" }
+  ]
+}
