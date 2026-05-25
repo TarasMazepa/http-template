@@ -6,7 +6,9 @@
   "bin": {
     "httpt": "./src/bin.js"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@httpt/test-utils": "*"
+  },
   "scripts": {
     "test": "node --test"
   },
