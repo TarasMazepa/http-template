@@ -11,7 +11,7 @@ describe('Pipeline: Hydrate & Parse', () => {
   for (const fixture of fixtures) {
     it(`should process ${fixture.irFile} correctly`, async () => {
       const hydrated = await hydrate();
-      const parsed = parse(hydrated.resolved, hydrated.bodyStream);
+      const parsed = parse(hydrated);
 
       assert.deepStrictEqual(parsed.ir, fixture.ir);
     });
