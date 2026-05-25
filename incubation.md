@@ -38,7 +38,7 @@ The execution of an .httpt file consists of three stages: Hydrate, Parse, and Ex
   * **Performance:** Achieves O(1) memory overhead since it does not build intermediate data structures for the template logic.
   * **Source Mapping:** The Index Shift Map is generated effortlessly on the fly during this single pass by tracking the integer differences between a `read-cursor` and a `write-cursor` whenever a `{{ parameter | function-name }}` tag is resolved.
 * **Parse Stage Mechanism (Parser)** / Deconstructs / the hydrated `.httpt-r` string or stream using a fast parser designed for a strict subset of HTTP.
-  * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body. *(See Design Note: Line Endings in Section VII for rationale).*
+  * **Separation of Head and Body:** The parser scans the hydrated string or stream strictly for the first double newline (`\r\n\r\n` or `\n\n`). Everything before is the Head; everything after is the Body. *(See Design Note: Line Endings in Section VII for rationale).* If the parser reaches the End of File (EOF) before encountering a double newline, it must gracefully finalize the Head state and assume the request has no body.
   * **Head Parsing:** The Request Line and Headers are parsed using fast, string splitting. The Request Line is split by spaces, and headers are split by the first colon (`:`).
   * **O(1) Body Handoff:** The parser stops reading exactly at the double newline boundary. The unread remainder of the stream (the Body) is handed off directly to the downstream execution client without being buffered or mapped into memory.
   * **Error Handling:** Syntax errors (like malformed headers) caught during this string splitting must still query the **Index Shift Map** to point the error back to the exact character index in the user's original `.httpt` file.
@@ -94,7 +94,7 @@ Authorization: Bearer {{ auth-token | raw }}
 Accept: application/json
 
 ```
-*(Note the trailing blank line to indicate the end of the headers, even when there is no body).*
+*(Note: The parser is DX-friendly. If a file ends immediately after the last header, EOF is treated as a valid boundary. No trailing blank lines are required).*
 
 #### 1.3.3.2 Case 2: Structured Payloads (JSON/XML)
 To send structured data, define the `Content-Type` header and use `{{ parameter | json-* }}` functions to format the request body. The execution client automatically calculates the `Content-Length`.
