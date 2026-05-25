@@ -107,20 +107,49 @@ function binarizeIr(ir, providedContent = null) {
   return result;
 }
 
-function loadE2eFixtures() {
+function getFixtureBaseNames() {
   const files = fs.readdirSync(E2E_DIR);
-  const irFiles = files.filter(f => f.endsWith('.httpt-ir'));
+  return files.filter(f => f.endsWith('.httpt')).map(f => f.replace('.httpt', ''));
+}
 
+function loadE2eFixtures() {
+  const baseNames = getFixtureBaseNames();
   const fixtures = [];
-  for (const irFile of irFiles) {
-    const baseName = irFile.replace('.httpt-ir', '');
-    const irPath = path.join(E2E_DIR, irFile);
-    const ir = JSON.parse(fs.readFileSync(irPath, 'utf8'));
+
+  for (const baseName of baseNames) {
+    let template = '';
+    try {
+      template = fs.readFileSync(path.join(E2E_DIR, `${baseName}.httpt`), 'utf8');
+    } catch (e) {
+      // default to ''
+    }
+
+    let data = {};
+    try {
+      data = JSON.parse(fs.readFileSync(path.join(E2E_DIR, `${baseName}.data.json`), 'utf8'));
+    } catch (e) {
+      // default to {}
+    }
+
+    let ir = null;
+    let irFile = `${baseName}.httpt-ir`;
+    try {
+      ir = JSON.parse(fs.readFileSync(path.join(E2E_DIR, irFile), 'utf8'));
+    } catch (e) {
+      irFile = null;
+    }
+
+    let error = null;
+    try {
+      error = JSON.parse(fs.readFileSync(path.join(E2E_DIR, `${baseName}.error.json`), 'utf8'));
+    } catch (e) {
+      // default to null
+    }
 
     let streamContent = null;
     let streamFilePath = null;
 
-    if (ir.body && ir.body.type === 'provided') {
+    if (ir && ir.body && ir.body.type === 'provided') {
       const streamIndex = ir.body.content !== undefined ? ir.body.content : 0;
       const streamFileName = `${irFile}-provided-stream-${streamIndex}`;
       const potentialStreamPath = path.join(E2E_DIR, streamFileName);
@@ -131,21 +160,7 @@ function loadE2eFixtures() {
       }
     }
 
-    let template = '';
-    try {
-      template = fs.readFileSync(path.join(E2E_DIR, baseName + '.httpt'), 'utf8');
-    } catch (e) {
-      // default to ''
-    }
-
-    let data = {};
-    try {
-      data = JSON.parse(fs.readFileSync(path.join(E2E_DIR, baseName + '.data.json'), 'utf8'));
-    } catch (e) {
-      // default to {}
-    }
-
-    fixtures.push({ irFile, ir, streamContent, streamFilePath, template, data });
+    fixtures.push({ baseName, irFile, ir, error, streamContent, streamFilePath, template, data });
   }
 
   return fixtures;
@@ -190,4 +205,4 @@ function normalizeForEchoServer(expectedIR, serverIR, adapterName) {
   }
 }
 
-module.exports = { E2E_DIR, createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer };
+module.exports = { E2E_DIR, createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer, getFixtureBaseNames };

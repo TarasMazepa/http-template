@@ -22,7 +22,9 @@ describe('E2E fixtures execution against echo server', () => {
   const fixtures = loadE2eFixtures();
 
   for (const fixture of fixtures) {
-    it(`should execute ${fixture.irFile} correctly`, async () => {
+    if (fixture.error) continue;
+    const nameToLog = fixture.irFile || fixture.baseName;
+    it(`should execute ${nameToLog} correctly`, async () => {
       const { irFile, ir, streamContent, streamFilePath } = fixture;
 
       ir.host = `localhost:${port}`;
