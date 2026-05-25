@@ -6,7 +6,7 @@
 
 At its core, it performs string replacement on raw HTTP text. To handle the data formatting required for valid HTTP requests, it provides a set of explicit functions to encode parameters (e.g., JSON escaping, URL encoding, or binary file streaming).
 
-The tool consumes a template, hydrates it using the explicit signature `hydrate(template, data, streams)`, and outputs a structured JSON Intermediate Representation (`.httpt-ir`). The `streams` argument is an array of **native I/O objects** (e.g., `ReadableStream`, `Buffer`, `Blob`, or `File` handles, depending on the SDK environment) passed as a third argument, separate from the `data` context. The `data.json` context must now only contain pure configuration variables. This IR can then be used by various execution clients to perform the actual network request.
+The tool consumes a template, hydrates it using the explicit signature `hydrate(template, data, streams = [])`, and outputs a structured JSON Intermediate Representation (`.httpt-ir`). The `streams` argument is an array of **native I/O objects** (e.g., `ReadableStream`, `Buffer`, `Blob`, or `File` handles, depending on the SDK environment) passed as a third argument, separate from the `data` context. The `data.json` context must now only contain pure configuration variables. This IR can then be used by various execution clients to perform the actual network request.
 
 This document serves as the technical specification for the templating syntax, the parsing workflow, and the IR schema.
 
@@ -186,7 +186,7 @@ The `"body"` key is a reserved keyword in the `data` context object. It must str
 
 * **Dynamic Body Injection Mechanism** / Injects / the pseudo-header `:httpt-body-type: ${data.body.type}` into the HTTP Head (using the same lookahead buffer mechanism as dynamic headers) if `data.body` is present, and then appends the body content after the double-newline boundary.
 * **Strict Conflict Prevention:** If `data.body` is provided, the source `.httpt` template MUST NOT contain its own body.
-* **Implementation Note (O(1) Collision Detection):** To maintain the single-pass memory footprint, the state machine should transition to a 'Body' state after the double-newline. If it reads any non-whitespace character from the source template while in this state AND `data.body` is defined, it must immediately throw a `BodyConflictError`.
+* **Implementation Note (O(1) Collision Detection):** To maintain the single-pass memory footprint, the state machine should transition to a 'Body' state after the double-newline. If it reads any non-whitespace character from the source template while in this state AND `data.body` is defined, it must immediately throw a `BodyConflictError` (see Appendix A).
 
 ## 1.4 The Intermediate Representation (.httpt-ir)
 
@@ -254,7 +254,7 @@ The JSON object represents the fully resolved request, stripped of all internal 
 
 ### 1.5.1 Example 1: Complex User Update Request
 
-*This request is hydrated via the `hydrate(template, data, streams)` 3-argument signature.*
+*This request is hydrated via the `hydrate(template, data, streams = [])` 3-argument signature.*
 
 **`update-user.httpt` (The Template)**
 ```http
@@ -308,7 +308,7 @@ Content-Type: application/json
 
 ### 1.5.2 Example 2: Binary File Upload
 
-*This request is hydrated via the `hydrate(template, data, streams)` 3-argument signature.*
+*This request is hydrated via the `hydrate(template, data, streams = [])` 3-argument signature.*
 
 **`upload-document.httpt` (The Template)**
 ```http
@@ -348,7 +348,7 @@ JVBERi0xLjQKJ...
 
 ### 1.5.3 Example 3: Hydrated Requests to JSON
 
-*Note: The original template for this output was hydrated via the `hydrate(template, data, streams)` 3-argument signature.*
+*Note: The original template for this output was hydrated via the `hydrate(template, data, streams = [])` 3-argument signature.*
 
 Given the hydrated `.httpt-r` string from **Example 1**:
 
@@ -496,13 +496,13 @@ The verification Processing Workflow performs two distinct checks:
 ### 2.2.1 Structural/Syntax Verification
 The verifier parses the raw `.httpt` string to ensure all templating boundaries are properly formed.
   * **Checks:** Ensures there are no unclosed brackets (e.g., `{{ missing-close | raw }}`), unrecognized built-in functions, or illegally nested tags.
-  * **Failure State:** Throws a `TemplateSyntaxError` indicating the exact line and character index of the malformed syntax.
+  * **Failure State:** Throws a `TemplateSyntaxError` (see Appendix A).
 
 ### 2.2.2 Data Contract Verification
 Developers can enforce a strict "Data Contract" by providing an array of expected argument keys. The verifier scans the template, extracts every unique parameter name defined inside the `{{ }}` blocks, and performs a strict set-equivalence check against the expected array.
 
-  * **Missing Arguments:** If the template requires a variable (e.g., `{{ user-id | url }}`) that is *not* in the expected contract, it throws a `MissingArgumentError`.
-  * **Extra Arguments:** If the expected contract provides a variable (e.g., `"api-key"`) that the template *never uses*, it throws an `UnexpectedArgumentError` (preventing unused or deprecated data from lingering in execution contexts).
+  * **Missing Arguments:** If the template requires a variable (e.g., `{{ user-id | url }}`) that is *not* in the expected contract, it throws a `MissingArgumentError` (see Appendix A).
+  * **Extra Arguments:** If the expected contract provides a variable (e.g., `"api-key"`) that the template *never uses*, it throws an `UnexpectedArgumentError` (see Appendix A).
 
 ### 2.2.3 Example SDK Usage
 The verifier is designed to be run during initialization or CI/CD pipelines, completely bypassing the Hydrate and Parse stages.
@@ -535,10 +535,7 @@ try {
 
 ## 2.3 The Testing Processing Workflow
 
-Defining the IR as JSON unlocks a highly decoupled testing Processing Workflow:
-
-1.  **Parser Tests (`.httpt-r` -> `.httpt-ir`):** Feed raw HTTP strings into the parser and assert the exact JSON output.
-2.  **Executor Tests (`.httpt-ir` -> Network):** Feed mock IR files into the execution engine and assert that the correct `curl` arguments or `fetch` configurations are generated.
+Testing for the HTTP Template ecosystem is managed via a unified End-to-End (E2E) testing matrix. Please refer to `test-fixtures/e2e/README.md` and `test-fixtures/e2e/TEST_MATRIX.md` for the comprehensive test runner specification, test vectors, and coverage roadmap.
 
 
 ## 2.4 Developer Experience & The Smart Hydrator
@@ -547,7 +544,7 @@ Defining the IR as JSON unlocks a highly decoupled testing Processing Workflow:
 The SDK's `hydrate` function is highly flexible, accepting the template as either an in-memory string OR a native I/O stream (e.g., `fs.createReadStream`). If a stream is provided, it processes the template character-by-character, allowing for true O(1) memory overhead even for massive templates.
 
 **Polymorphic Data Context:**
-Developers do not need to manually manage the 3-argument signature (`hydrate(template, data, streams)`) or construct JSON pointers. The SDK accepts a single data object containing primitives, JSON, and native streams. The SDK automatically extracts these streams, maps them to the internal engine, and replaces them with `{ "type": "provided", "content": index }` pointers under the hood.
+Developers do not need to manually manage the 3-argument signature (`hydrate(template, data, streams = [])`) or construct JSON pointers. The `streams` argument is optional (nullable/defaults to an empty array). The SDK accepts a single data object containing primitives, JSON, and native streams. The SDK automatically extracts these streams, maps them to the internal engine, and replaces them with `{ "type": "provided", "content": index }` pointers under the hood.
 
 ```javascript
 import fs from 'fs';
@@ -607,3 +604,11 @@ IR Schema: The Intermediate Representation (IR) JSON must introduce a root type 
 HTTP Template is currently in active incubation. The overarching goal is to build out the parsing and execution Processing Workflow so that `.httpt-ir` files can eventually be executed by any underlying HTTP client (like `fetch`, `curl`, or Dart's `HttpClient`).
 
 If you are interested in building out execution clients, contributing to the parser, or writing static analysis tooling, please refer to the schemas defined in this document.
+
+
+# Appendix A: Error Dictionary
+
+* **`BodyConflictError`**: Thrown during the Hydration stage when `data.body` is provided but the source `.httpt` template also contains non-whitespace characters after its double-newline boundary.
+* **`TemplateSyntaxError`**: Thrown during static analysis when the `.httpt` syntax is malformed (e.g., unclosed brackets, unrecognized functions, illegally nested tags), indicating the exact line and character index of the error.
+* **`MissingArgumentError`**: Thrown during static analysis when the template requires a variable that is not provided in the expected contract.
+* **`UnexpectedArgumentError`**: Thrown during static analysis when the expected contract provides a variable that the template never uses.
