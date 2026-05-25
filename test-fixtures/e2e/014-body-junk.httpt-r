@@ -1,0 +1,8 @@
+POST /api/junk HTTP/1.1
+Host: example.com
+:httpt-body-type: text
+
+This body has a
+double-newline right here:
+
+and it should be preserved as part of the body.

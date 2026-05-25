@@ -173,6 +173,18 @@ function normalizeForEchoServer(expectedIR, serverIR, adapterName) {
     serverIR.headers = serverIR.headers.map(h => ({ name: h.name.toLowerCase(), value: h.value }));
   }
 
+  if (adapterName === 'fetch' && expectedIR.headers && serverIR.headers) {
+    const mergedHeaders = {};
+    for (const h of expectedIR.headers) {
+      if (mergedHeaders[h.name]) {
+        mergedHeaders[h.name] += ', ' + h.value;
+      } else {
+        mergedHeaders[h.name] = h.value;
+      }
+    }
+    expectedIR.headers = Object.keys(mergedHeaders).map(name => ({ name, value: mergedHeaders[name] }));
+  }
+
   if (adapterName === 'fetch' && ['GET', 'HEAD'].includes(expectedIR.method)) {
     delete expectedIR.body;
   }

@@ -24,7 +24,7 @@ function dispatchCurl(ir, scheme, bodyStream = null) {
     else if (ir.version === 'HTTP/3') args.push('--http3');
 
     for (const { name, value } of ir.headers) {
-      args.push('-H', `${name}: ${value}`);
+      args.push('-H', value ? `${name}: ${value}` : `${name};`);
     }
 
     let buffer = null;

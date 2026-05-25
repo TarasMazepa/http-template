@@ -1,0 +1,4 @@
+GET /api/cookies HTTP/1.1
+Host: example.com
+Set-Cookie: session=123
+Set-Cookie: user=abc

@@ -1,0 +1,12 @@
+{
+  "schema-version": "1.0",
+  "method": "POST",
+  "host": "example.com",
+  "uri": "/api/junk",
+  "version": "HTTP/1.1",
+  "headers": [],
+  "body": {
+    "type": "text",
+    "content": "This body has a\ndouble-newline right here:\n\nand it should be preserved as part of the body."
+  }
+}
