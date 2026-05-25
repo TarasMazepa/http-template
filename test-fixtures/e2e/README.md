@@ -90,10 +90,4 @@ A complete test case consists of six files:
 
 ### Master Specification Rules (Hardened Logic)
 
-* **Stream Reference Validation:**
-  * Implicit default (index 0) is permitted ONLY if exactly one stream is present.
-  * Ambiguity Error: If >1 `provided` stream is referenced, all must explicitly define a `content` index.
-  * Uniqueness Error: Every stream reference index MUST be unique; duplicates trigger a validation error.
-* **Stream Orchestration:**
-  * **Materialization (Metadata):** Streams used in Headers/Request-Line are buffered to memory during hydration. If a stream is too large, throw an error.
-  * **Concatenation (Body):** Streams used in the Body are piped via streaming pipeline (O(1) memory).
+The test runner must strictly enforce the Stream Reference Validation and Orchestration rules defined in the core specification (`../../incubation.md` Sections 1.4.4 and 1.4.5).
