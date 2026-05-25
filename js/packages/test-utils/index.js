@@ -113,6 +113,7 @@ function loadE2eFixtures() {
 
   const fixtures = [];
   for (const irFile of irFiles) {
+    const baseName = irFile.replace('.httpt-ir', '');
     const irPath = path.join(E2E_DIR, irFile);
     const ir = JSON.parse(fs.readFileSync(irPath, 'utf8'));
 
@@ -130,7 +131,21 @@ function loadE2eFixtures() {
       }
     }
 
-    fixtures.push({ irFile, ir, streamContent, streamFilePath });
+    let template = '';
+    try {
+      template = fs.readFileSync(path.join(E2E_DIR, baseName + '.httpt'), 'utf8');
+    } catch (e) {
+      // default to ''
+    }
+
+    let data = {};
+    try {
+      data = JSON.parse(fs.readFileSync(path.join(E2E_DIR, baseName + '.data.json'), 'utf8'));
+    } catch (e) {
+      // default to {}
+    }
+
+    fixtures.push({ irFile, ir, streamContent, streamFilePath, template, data });
   }
 
   return fixtures;
