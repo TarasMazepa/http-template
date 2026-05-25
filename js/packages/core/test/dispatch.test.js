@@ -12,9 +12,7 @@ test('E2E fixtures execution against echo server', async () => {
   const serverObj = await createEchoServer();
   const port = serverObj.port;
 
-  // The E2E fixtures are located three directories up from this test file
-  const fixturesDir = path.join(__dirname, '../../../../test-fixtures/e2e');
-  const fixtures = loadE2eFixtures(fixturesDir);
+  const fixtures = loadE2eFixtures();
 
   try {
     for (const fixture of fixtures) {

@@ -11,8 +11,7 @@ test('E2E fixtures execution against echo server', async () => {
   const serverObj = await createEchoServer();
   const port = serverObj.port;
 
-  const fixturesDir = path.join(__dirname, '../../../../test-fixtures/e2e');
-  const fixtures = loadE2eFixtures(fixturesDir);
+  const fixtures = loadE2eFixtures();
 
   try {
     for (const fixture of fixtures) {

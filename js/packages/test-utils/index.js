@@ -3,6 +3,8 @@ const { Buffer } = require('node:buffer');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const E2E_DIR = path.resolve(__dirname, '../../../test-fixtures/e2e');
+
 /**
  * Starts an HTTP echo server on a random port.
  * Returns a server object with a method `getCapturedRequest()` that waits for a request,
@@ -105,13 +107,13 @@ function binarizeIr(ir, providedContent = null) {
   return result;
 }
 
-function loadE2eFixtures(fixturesDirPath) {
-  const files = fs.readdirSync(fixturesDirPath);
+function loadE2eFixtures() {
+  const files = fs.readdirSync(E2E_DIR);
   const irFiles = files.filter(f => f.endsWith('.httpt-ir'));
 
   const fixtures = [];
   for (const irFile of irFiles) {
-    const irPath = path.join(fixturesDirPath, irFile);
+    const irPath = path.join(E2E_DIR, irFile);
     const ir = JSON.parse(fs.readFileSync(irPath, 'utf8'));
 
     let streamContent = null;
@@ -120,7 +122,7 @@ function loadE2eFixtures(fixturesDirPath) {
     if (ir.body && ir.body.type === 'provided') {
       const streamIndex = ir.body.content !== undefined ? ir.body.content : 0;
       const streamFileName = `${irFile}-provided-stream-${streamIndex}`;
-      const potentialStreamPath = path.join(fixturesDirPath, streamFileName);
+      const potentialStreamPath = path.join(E2E_DIR, streamFileName);
 
       if (fs.existsSync(potentialStreamPath)) {
         streamContent = fs.readFileSync(potentialStreamPath, 'utf8');
@@ -161,4 +163,4 @@ function normalizeForEchoServer(expectedIR, serverIR, adapterName) {
   }
 }
 
-module.exports = { createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer };
+module.exports = { E2E_DIR, createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer };
