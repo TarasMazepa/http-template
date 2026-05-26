@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { E2E_DIR } = require('../js/packages/test-utils/index.js');
+const { E2E_DIR, getFixtureBaseNames } = require('../js/packages/test-utils/index.js');
 
 describe('E2E Matrix Validation', () => {
   it('should verify all required files exist and are well-formed', () => {
@@ -10,9 +10,7 @@ describe('E2E Matrix Validation', () => {
     const claimedFiles = new Set();
 
     // 1. Identify all suites by their .httpt template
-    const baseNames = allFiles
-      .filter(f => f.endsWith('.httpt'))
-      .map(f => f.replace('.httpt', ''));
+    const baseNames = getFixtureBaseNames();
 
   // 2. Verify each suite
   for (const base of baseNames) {
