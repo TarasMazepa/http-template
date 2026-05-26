@@ -5,6 +5,8 @@ const path = require('node:path');
 
 const E2E_DIR = path.resolve(__dirname, '../../../test-fixtures/e2e');
 
+const IGNORED_HEADERS = ['host', 'connection', 'accept', 'accept-language', 'sec-fetch-mode', 'user-agent', 'accept-encoding', 'content-length', 'content-type', 'transfer-encoding'];
+
 /**
  * Starts an HTTP echo server on a random port.
  * Returns a server object with a method `getCapturedRequest()` that waits for a request,
@@ -30,18 +32,7 @@ function createEchoServer() {
 
       for (let i = 0; i < req.rawHeaders.length; i += 2) {
         const name = req.rawHeaders[i];
-        if (
-            name.toLowerCase() !== 'host' &&
-            name.toLowerCase() !== 'connection' &&
-            name.toLowerCase() !== 'accept' &&
-            name.toLowerCase() !== 'accept-language' &&
-            name.toLowerCase() !== 'sec-fetch-mode' &&
-            name.toLowerCase() !== 'user-agent' &&
-            name.toLowerCase() !== 'accept-encoding' &&
-            name.toLowerCase() !== 'content-length' &&
-            name.toLowerCase() !== 'content-type' &&
-            name.toLowerCase() !== 'transfer-encoding'
-        ) {
+        if (!IGNORED_HEADERS.includes(name.toLowerCase())) {
            ir.headers.push({ name: req.rawHeaders[i], value: req.rawHeaders[i + 1] });
         }
       }
@@ -169,19 +160,7 @@ function loadE2eFixtures() {
 function normalizeForEchoServer(expectedIR, serverIR, adapterName) {
   if (expectedIR.headers) {
     expectedIR.headers = expectedIR.headers.map(h => ({ name: h.name.toLowerCase(), value: h.value }));
-    expectedIR.headers = expectedIR.headers.filter(h => {
-      const name = h.name.toLowerCase();
-      return name !== 'host' &&
-             name !== 'connection' &&
-             name !== 'accept' &&
-             name !== 'accept-language' &&
-             name !== 'sec-fetch-mode' &&
-             name !== 'user-agent' &&
-             name !== 'accept-encoding' &&
-             name !== 'content-length' &&
-             name !== 'content-type' &&
-             name !== 'transfer-encoding';
-    });
+    expectedIR.headers = expectedIR.headers.filter(h => !IGNORED_HEADERS.includes(h.name));
   }
 
   if (serverIR.headers) {

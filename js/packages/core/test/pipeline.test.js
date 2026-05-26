@@ -7,10 +7,19 @@ describe('Pipeline: Hydrate & Parse', () => {
   const fixtures = loadE2eFixtures();
 
   for (const fixture of fixtures) {
-    if (fixture.error) {
-      continue; // Skip testing expected error fixtures in the basic pipeline test
-    }
     const nameToLog = fixture.irFile || fixture.baseName;
+    if (fixture.error) {
+      it(`should throw ${fixture.error.name} for ${nameToLog}`, { todo: true }, async () => {
+        await assert.rejects(
+          async () => {
+            const { resolved, bodyStream } = await hydrate(fixture.template, fixture.data);
+            parse(resolved, bodyStream);
+          },
+          (err) => err.name === fixture.error.name
+        );
+      });
+      continue;
+    }
     it(`should process ${nameToLog} correctly`, { todo: true }, async () => {
       const { resolved, bodyStream } = await hydrate(fixture.template, fixture.data);
       const { ir } = parse(resolved, bodyStream);
