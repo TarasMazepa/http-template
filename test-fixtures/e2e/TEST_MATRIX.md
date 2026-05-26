@@ -23,7 +23,7 @@ This ledger maps our test fixtures to the 7 testing dimensions defined in the `R
 | `015-multi-headers` | 3. Header Hygiene | Preserving duplicate headers (e.g., `Set-Cookie`). | ✅ Implemented |
 | `016-empty-header` | 3. Header Hygiene | Headers with keys but no values. | ✅ Implemented |
 | **Phase 3: Protocol & JSON Quirks** | | | |
-| `017-http-2-protocol` | 6. Protocol Edge Cases | Request line parsing with `HTTP/2`. | 🚧 Planned |
-| `018-bizarre-spacing` | 6. Protocol Edge Cases | Handling extra spaces in the request line. | 🚧 Planned |
-| `019-absolute-uri` | 6. Protocol Edge Cases | Handling absolute URIs in the request line. | 🚧 Planned |
-| `020-malformed-json` | 4. JSON Nuances | Fallback/error handling for invalid JSON bodies. | 🚧 Planned |
+| `017-http-2-protocol` | 6. Protocol Edge Cases | Request line parsing with `HTTP/2`. | ✅ Implemented |
+| `018-bizarre-spacing` | 6. Protocol Edge Cases | Handling extra spaces in the request line. | ✅ Implemented |
+| `019-absolute-uri` | 6. Protocol Edge Cases | Handling absolute URIs in the request line. | ✅ Implemented |
+| `020-malformed-json` | 4. JSON Nuances | Fallback/error handling for invalid JSON bodies. | ✅ Implemented |

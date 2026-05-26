@@ -1,0 +1,12 @@
+{
+  "schema-version": "1.0",
+  "method": "POST",
+  "host": "api.example.com",
+  "uri": "/api/malformed",
+  "version": "HTTP/1.1",
+  "headers": [],
+  "body": {
+    "type": "text",
+    "content": "{\"id\": 123, }"
+  }
+}
