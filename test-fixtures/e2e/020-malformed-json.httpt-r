@@ -1,0 +1,5 @@
+POST /api/malformed HTTP/1.1
+Host: api.example.com
+:httpt-body-type: json
+
+{"id": 123, }

@@ -1,0 +1,2 @@
+GET /api/v2 HTTP/2
+Host: api.example.com

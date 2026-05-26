@@ -1,0 +1,2 @@
+GET     /api/foo    HTTP/1.1
+Host: api.example.com
