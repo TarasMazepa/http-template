@@ -89,8 +89,35 @@ function dispatchCurl(ir, scheme, bodyStream = null) {
   });
 }
 
-function emitCommand(file, flags) {
-  // TODO: Read parsed IR, handle the --target <curl|fetch> flag, and call the respective executor.
-  console.log(`[emit] Executing on file: ${file} with flags: ${JSON.stringify(flags)}`);
+async function emitCommand(file, flags) {
+  if (!file) {
+    throw new Error('Missing .httpt-ir file');
+  }
+
+  const ir = JSON.parse(require('node:fs').readFileSync(file, 'utf-8'));
+  const scheme = flags.scheme || 'https';
+  const target = flags.target || 'fetch';
+
+  if (flags['dry-run'] || flags.dryRun) {
+    console.log(JSON.stringify(ir, null, 2));
+    return;
+  }
+
+  if (target === 'curl') {
+    await dispatchCurl(ir, scheme);
+    return;
+  }
+
+  if (target === 'fetch') {
+    const response = await dispatchFetch(ir, scheme);
+    const responseText = await response.text();
+    process.stdout.write(responseText);
+    return;
+  }
+
+  throw new Error(`Unsupported emit target: ${target}`);
 }
-module.exports = { emitCommand, dispatchCurl };
+
+emitCommand.dispatchCurl = dispatchCurl;
+
+module.exports = emitCommand;

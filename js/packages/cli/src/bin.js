@@ -6,21 +6,21 @@ const parseCommand = require('./commands/parse');
 const emitCommand = require('./commands/emit');
 const runCommand = require('./commands/run');
 
-function main() {
+async function main() {
   const { command, file, flags } = parseArgs(process.argv);
 
   switch (command) {
     case 'hydrate':
-      hydrateCommand(file, flags);
+      await hydrateCommand(file, flags);
       break;
     case 'parse':
-      parseCommand(file, flags);
+      await parseCommand(file, flags);
       break;
     case 'emit':
-      emitCommand(file, flags);
+      await emitCommand(file, flags);
       break;
     case 'run':
-      runCommand(file, flags);
+      await runCommand(file, flags);
       break;
     default:
       console.log(`Unknown command: ${command}`);
@@ -28,4 +28,7 @@ function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
+});

@@ -9,7 +9,7 @@ describe('Pipeline: Hydrate & Parse', () => {
   for (const fixture of fixtures) {
     const nameToLog = fixture.irFile || fixture.baseName;
     if (fixture.error) {
-      it(`should throw ${fixture.error.name} for ${nameToLog}`, { todo: true }, async () => {
+      it(`should throw ${fixture.error.name} for ${nameToLog}`, async () => {
         await assert.rejects(
           async () => {
             const { resolved, bodyStream } = await hydrate(fixture.template, fixture.data);
@@ -20,7 +20,7 @@ describe('Pipeline: Hydrate & Parse', () => {
       });
       continue;
     }
-    it(`should process ${nameToLog} correctly`, { todo: true }, async () => {
+    it(`should process ${nameToLog} correctly`, async () => {
       const { resolved, bodyStream } = await hydrate(fixture.template, fixture.data);
       const { ir } = parse(resolved, bodyStream);
       assert.deepEqual(ir, fixture.ir);
