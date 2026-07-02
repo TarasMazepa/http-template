@@ -7,6 +7,10 @@ const E2E_DIR = path.resolve(__dirname, '../../../test-fixtures/e2e');
 
 const IGNORED_HEADERS = ['host', 'connection', 'accept', 'accept-language', 'sec-fetch-mode', 'user-agent', 'accept-encoding', 'content-length', 'content-type', 'transfer-encoding'];
 
+function normalizeFixtureText(value) {
+  return String(value).replace(/\r\n/g, '\n');
+}
+
 /**
  * Starts an HTTP echo server on a random port.
  * Returns a server object with a method `getCapturedRequest()` that waits for a request,
@@ -124,7 +128,7 @@ function loadE2eFixtures() {
   for (const baseName of baseNames) {
     let template = '';
     try {
-      template = fs.readFileSync(path.join(E2E_DIR, `${baseName}.httpt`), 'utf8');
+      template = normalizeFixtureText(fs.readFileSync(path.join(E2E_DIR, `${baseName}.httpt`), 'utf8'));
     } catch (e) {
       // default to ''
     }
@@ -146,7 +150,7 @@ function loadE2eFixtures() {
 
     let resolved = null;
     try {
-      resolved = fs.readFileSync(path.join(E2E_DIR, `${baseName}.httpt-r`), 'utf8');
+      resolved = normalizeFixtureText(fs.readFileSync(path.join(E2E_DIR, `${baseName}.httpt-r`), 'utf8'));
     } catch (e) {
       // default to null
     }
