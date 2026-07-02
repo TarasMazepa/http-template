@@ -1,7 +1,7 @@
 [
-  { "hydrated-start": 33, "original-start": 33, "hydrated-length": 25, "original-length": 20 },
-  { "hydrated-start": 81, "original-start": 76, "hydrated-length": 9, "original-length": 17 },
-  { "hydrated-start": 125, "original-start": 125, "hydrated-length": 16, "original-length": 22 },
-  { "hydrated-start": 145, "original-start": 151, "hydrated-length": 45, "original-length": 22 },
-  { "hydrated-start": 204, "original-start": 187, "hydrated-length": 12, "original-length": 28 }
+  { "hydrated-start": 38, "original-start": 38, "hydrated-length": 20, "original-length": 20 },
+  { "hydrated-start": 82, "original-start": 82, "hydrated-length": 9, "original-length": 17 },
+  { "hydrated-start": 133, "original-start": 141, "hydrated-length": 16, "original-length": 22 },
+  { "hydrated-start": 152, "original-start": 166, "hydrated-length": 43, "original-length": 24 },
+  { "hydrated-start": 209, "original-start": 204, "hydrated-length": 12, "original-length": 29 }
 ]

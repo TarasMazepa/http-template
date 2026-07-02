@@ -2,14 +2,17 @@ function parseArgs(argv) {
  
   const args = argv.slice(2);
   const command = args[0];
-  const file = args[1];
+  let file = null;
 
   const flags = {};
 
-  for (let i=2, len=args.length; i<len; i++) {
+  for (let i=1, len=args.length; i<len; i++) {
     const arg = args[i];
 
     if(!arg.startsWith('--')) {
+      if (!file) {
+        file = arg;
+      }
       continue;
     }
     const flagName = arg.slice(2);

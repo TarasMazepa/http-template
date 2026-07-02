@@ -44,6 +44,21 @@ function materializeStream(value) {
   throw createNamedError('TemplateSyntaxError', 'Only string and Buffer stream values are supported synchronously');
 }
 
+function parseHydrateFunction(functionSource) {
+  const trimmed = functionSource.trim();
+  const match = trimmed.match(/^([A-Za-z0-9-]+)(?:\((.*)\))?$/);
+
+  if (!match) {
+    throw createNamedError('TemplateSyntaxError', `Invalid hydrate function: ${trimmed}`);
+  }
+
+  if (match[2] != null && match[2].trim()) {
+    throw createNamedError('TemplateSyntaxError', `Hydrate function arguments are not supported yet: ${trimmed}`);
+  }
+
+  return match[1];
+}
+
 function applyHydrateFunction(value, functionName, streams) {
   switch (functionName) {
     case 'raw':
@@ -68,13 +83,18 @@ function applyHydrateFunction(value, functionName, streams) {
 }
 
 function hydrate(template, data, streams = []) {
-  let hydratedCursor = 0;
   const map = [];
-  const normalizedTemplate = String(template).replace(/\r\n/g, '\n');
+  const source = String(template);
+  const newline = source.includes('\r\n') ? '\r\n' : '\n';
+  let shift = 0;
 
-  let resolved = normalizedTemplate.replace(/\{\{\s*([^|}]+?)\s*\|\s*([^}]+?)\s*\}\}/g, (match, key, functionName, offset) => {
+  let resolved = source.replace(/\{\{\s*([^|}]+?)\s*((?:\|\s*[^|}]+?\s*)+)\}\}/g, (match, key, functionSource, offset) => {
     const dataKey = key.trim();
-    const transform = functionName.trim();
+    const transforms = functionSource
+      .split('|')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map(parseHydrateFunction);
 
     if (!Object.prototype.hasOwnProperty.call(data, dataKey)) {
       throw createNamedError('MissingArgumentError', `Missing data key: ${dataKey}`, {
@@ -82,31 +102,35 @@ function hydrate(template, data, streams = []) {
       });
     }
 
-    hydratedCursor += offset - (map.at(-1)?.['original-start'] ?? 0) - (map.at(-1)?.['original-length'] ?? 0);
+    let replacement = data[dataKey];
+    for (const transform of transforms) {
+      replacement = applyHydrateFunction(replacement, transform, streams);
+    }
+    replacement = String(replacement);
 
-    const replacement = applyHydrateFunction(data[dataKey], transform, streams);
     map.push({
-      'hydrated-start': hydratedCursor,
+      'hydrated-start': offset + shift,
       'original-start': offset,
       'hydrated-length': replacement.length,
       'original-length': match.length,
     });
-    hydratedCursor += replacement.length;
+    shift += replacement.length - match.length;
 
     return replacement;
   });
 
   const boundaryMatch = resolved.match(/\r?\n\r?\n/);
   const boundaryIndex = boundaryMatch ? boundaryMatch.index : resolved.length;
-  const boundary = boundaryMatch ? boundaryMatch[0] : '\n\n';
-  let head = resolved.slice(0, boundaryIndex).replace(/\n+$/, '');
+  let boundary = boundaryMatch ? boundaryMatch[0] : '';
+  let head = resolved.slice(0, boundaryIndex).replace(/(?:\r?\n)+$/, '');
   let body = boundaryMatch ? resolved.slice(boundaryIndex + boundary.length) : '';
+  let bodyStream = null;
 
   if (Array.isArray(data.headers) && data.headers.length > 0) {
     const dynamicHeaders = data.headers
       .map(({ name, value }) => `${name}: ${value}`)
-      .join('\n');
-    head = `${head}\n${dynamicHeaders}`;
+      .join(newline);
+    head = `${head}${newline}${dynamicHeaders}`;
   }
 
   if (data.body) {
@@ -116,13 +140,23 @@ function hydrate(template, data, streams = []) {
       throw error;
     }
     const bodyType = data.body.type || 'text';
-    head = `${head}\n:httpt-body-type: ${bodyType}`;
-    body = data.body.content == null ? '' : String(data.body.content);
+    head = `${head}${newline}:httpt-body-type: ${bodyType}`;
+
+    if (bodyType === 'provided') {
+      const streamIndex = data.body.content == null ? 0 : data.body.content;
+      bodyStream = streams[streamIndex] || null;
+      body = '';
+    } else {
+      body = data.body.content == null ? '' : String(data.body.content);
+      if (body && !boundary) {
+        boundary = `${newline}${newline}`;
+      }
+    }
   }
 
-  resolved = `${head}${boundary}${body}`;
+  resolved = `${head}${boundary || newline}${body}`;
 
-  return { resolved, map, bodyStream: null };
+  return { resolved, map, bodyStream };
 }
 
 function parse(resolved, optionalBodyStream = null) {

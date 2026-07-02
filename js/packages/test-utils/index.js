@@ -103,6 +103,20 @@ function getFixtureBaseNames() {
   return files.filter(f => f.endsWith('.httpt')).map(f => f.replace('.httpt', ''));
 }
 
+function loadReferencedStreams(referenceFileName) {
+  const streams = [];
+
+  for (let index = 0; ; index += 1) {
+    const streamPath = path.join(E2E_DIR, `${referenceFileName}-provided-stream-${index}`);
+    if (!fs.existsSync(streamPath)) {
+      break;
+    }
+    streams.push(fs.readFileSync(streamPath));
+  }
+
+  return streams;
+}
+
 function loadE2eFixtures() {
   const baseNames = getFixtureBaseNames();
   const fixtures = [];
@@ -130,6 +144,20 @@ function loadE2eFixtures() {
       irFile = null;
     }
 
+    let resolved = null;
+    try {
+      resolved = fs.readFileSync(path.join(E2E_DIR, `${baseName}.httpt-r`), 'utf8');
+    } catch (e) {
+      // default to null
+    }
+
+    let map = null;
+    try {
+      map = JSON.parse(fs.readFileSync(path.join(E2E_DIR, `${baseName}.httpt-map`), 'utf8'));
+    } catch (e) {
+      // default to null
+    }
+
     let error = null;
     try {
       error = JSON.parse(fs.readFileSync(path.join(E2E_DIR, `${baseName}.error.json`), 'utf8'));
@@ -139,6 +167,8 @@ function loadE2eFixtures() {
 
     let streamContent = null;
     let streamFilePath = null;
+    const dataFile = `${baseName}.data.json`;
+    const dataStreams = loadReferencedStreams(dataFile);
 
     if (ir && ir.body && ir.body.type === 'provided') {
       const streamIndex = ir.body.content !== undefined ? ir.body.content : 0;
@@ -151,7 +181,19 @@ function loadE2eFixtures() {
       }
     }
 
-    fixtures.push({ baseName, irFile, ir, error, streamContent, streamFilePath, template, data });
+    fixtures.push({
+      baseName,
+      irFile,
+      ir,
+      resolved,
+      map,
+      error,
+      streamContent,
+      streamFilePath,
+      dataStreams,
+      template,
+      data,
+    });
   }
 
   return fixtures;
@@ -184,4 +226,4 @@ function normalizeForEchoServer(expectedIR, serverIR, adapterName) {
   }
 }
 
-module.exports = { E2E_DIR, createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer, getFixtureBaseNames };
+module.exports = { E2E_DIR, createEchoServer, binarizeIr, loadE2eFixtures, normalizeForEchoServer, getFixtureBaseNames, loadReferencedStreams };
