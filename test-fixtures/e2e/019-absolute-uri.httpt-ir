@@ -1,0 +1,10 @@
+{
+  "schema-version": "1.0",
+  "method": "GET",
+  "host": "api.example.com",
+  "uri": "https://api.example.com/v1/resource?q=1",
+  "version": "HTTP/1.1",
+  "headers": [
+    { "name": "Accept", "value": "application/json" }
+  ]
+}

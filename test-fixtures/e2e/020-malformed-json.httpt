@@ -1,0 +1,5 @@
+POST /bad-json HTTP/1.1
+Host: example.com
+:httpt-body-type: json
+
+{"broken": true

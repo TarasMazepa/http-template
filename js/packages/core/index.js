@@ -1,9 +1,21 @@
-const { hydrate, parse } = require('./src/pipeline');
+const {
+  hydrate,
+  hydrateAsync,
+  parse,
+  parseAsync,
+  verifyContract,
+  validateStreamReferences,
+  prepareHydrationContext,
+} = require('./src/pipeline');
 const { build, execute } = require('./src/facade');
 const { dispatchFetch } = require('./src/dispatch');
 
 module.exports = {
-  hydrate, parse,
+  hydrate, hydrateAsync,
+  parse, parseAsync,
+  verifyContract,
+  validateStreamReferences,
+  prepareHydrationContext,
   build, execute,
   dispatchFetch
 };

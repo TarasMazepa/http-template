@@ -6,6 +6,14 @@ function parseArgs(argv) {
 
   const flags = {};
 
+  function setFlag(name, value) {
+    if (Object.prototype.hasOwnProperty.call(flags, name)) {
+      flags[name] = Array.isArray(flags[name]) ? flags[name].concat(value) : [flags[name], value];
+      return;
+    }
+    flags[name] = value;
+  }
+
   for (let i=1, len=args.length; i<len; i++) {
     const arg = args[i];
 
@@ -19,9 +27,9 @@ function parseArgs(argv) {
     const nextValue = args[i + 1];
 
     if(!nextValue || nextValue.startsWith('--')) {
-      flags[flagName] = true;
+      setFlag(flagName, true);
     }else {
-      flags[flagName] = nextValue;
+      setFlag(flagName, nextValue);
       i++;
     }
 

@@ -10,7 +10,10 @@
  * @returns {Promise<Response>}
  */
 async function dispatchFetch(ir, scheme, bodyStream = null) {
-  const url = new URL(ir.uri, `${scheme}://${ir.host}`).toString();
+  const parsedUrl = new URL(ir.uri, `${scheme}://${ir.host}`);
+  parsedUrl.protocol = `${scheme}:`;
+  parsedUrl.host = ir.host;
+  const url = parsedUrl.toString();
   const headers = new Headers();
   for (const { name, value } of ir.headers) headers.append(name, value);
 

@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const { hydrate } = require('@httpt/core');
+const { loadStreamsFromFlags } = require('../streams');
 
 function hydrateCommand(file, flags) {
   if (!file) {
@@ -12,7 +13,8 @@ function hydrateCommand(file, flags) {
 
   const template = fs.readFileSync(file, 'utf-8');
   const data = JSON.parse(fs.readFileSync(flags.data, 'utf-8'));
-  const { resolved, map } = hydrate(template, data);
+  const streams = loadStreamsFromFlags(flags);
+  const { resolved, map } = hydrate(template, data, streams);
   const outputFile = flags.out || flags.output || `${file}-r`;
 
   fs.writeFileSync(outputFile, resolved);

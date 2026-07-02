@@ -1,0 +1,3 @@
+GET /h2/resource HTTP/2
+Host: example.com
+

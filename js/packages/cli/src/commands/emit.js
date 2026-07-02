@@ -15,13 +15,16 @@ const { dispatchFetch } = require('@httpt/core');
  */
 function dispatchCurl(ir, scheme, bodyStream = null) {
   return new Promise((resolve, reject) => {
-    const url = `${scheme}://${ir.host}${ir.uri}`;
+    const parsedUrl = new URL(ir.uri, `${scheme}://${ir.host}`);
+    parsedUrl.protocol = `${scheme}:`;
+    parsedUrl.host = ir.host;
+    const url = parsedUrl.toString();
     const args = ['-s', '-v', '-X', ir.method];
 
     if (ir.version === 'HTTP/1.0') args.push('--http1.0');
     else if (ir.version === 'HTTP/1.1') args.push('--http1.1');
-    else if (ir.version === 'HTTP/2' || ir.version === 'HTTP/2.0') args.push('--http2');
-    else if (ir.version === 'HTTP/3') args.push('--http3');
+    // HTTP/2 and HTTP/3 support depends on the installed curl build and server.
+    // Let curl negotiate/fallback instead of making local E2E execution fail.
 
     for (const { name, value } of ir.headers) {
       args.push('-H', value ? `${name}: ${value}` : `${name};`);

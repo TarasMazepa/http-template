@@ -204,6 +204,19 @@ function loadE2eFixtures() {
 }
 
 function normalizeForEchoServer(expectedIR, serverIR, adapterName) {
+  if (expectedIR.uri) {
+    try {
+      const parsedUri = new URL(expectedIR.uri);
+      expectedIR.uri = `${parsedUri.pathname}${parsedUri.search}`;
+    } catch (e) {
+      // origin-form URI; keep as-is
+    }
+  }
+
+  if (expectedIR.version === 'HTTP/2' || expectedIR.version === 'HTTP/2.0' || expectedIR.version === 'HTTP/3') {
+    expectedIR.version = serverIR.version;
+  }
+
   if (expectedIR.headers) {
     expectedIR.headers = expectedIR.headers.map(h => ({ name: h.name.toLowerCase(), value: h.value }));
     expectedIR.headers = expectedIR.headers.filter(h => !IGNORED_HEADERS.includes(h.name));

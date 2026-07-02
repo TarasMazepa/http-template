@@ -5,6 +5,7 @@ const hydrateCommand = require('./commands/hydrate');
 const parseCommand = require('./commands/parse');
 const emitCommand = require('./commands/emit');
 const runCommand = require('./commands/run');
+const verifyCommand = require('./commands/verify');
 
 async function main() {
   const { command, file, flags } = parseArgs(process.argv);
@@ -21,6 +22,9 @@ async function main() {
       break;
     case 'run':
       await runCommand(file, flags);
+      break;
+    case 'verify':
+      await verifyCommand(file, flags);
       break;
     default:
       console.log(`Unknown command: ${command}`);

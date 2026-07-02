@@ -1,9 +1,9 @@
-const { hydrate, parse } = require('./pipeline');
+const { hydrateAsync, parseAsync } = require('./pipeline');
 const { dispatchFetch } = require('./dispatch');
 
 async function build(template, data, streams = []) {
-  const { resolved, map, bodyStream } = hydrate(template, data, streams);
-  const parsed = parse(resolved, bodyStream);
+  const { resolved, map, bodyStream } = await hydrateAsync(template, data, streams);
+  const parsed = await parseAsync(resolved, bodyStream);
 
   return {
     ir: parsed.ir,
