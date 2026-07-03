@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { hydrate, parse } = require('../src/pipeline.js');
+const { hydrate, hydrateAsync, parse } = require('../src/pipeline.js');
 const { loadE2eFixtures } = require('@httpt/test-utils');
 
 function normalizeLineEndings(value) {
@@ -50,9 +50,36 @@ describe('Pipeline: Hydrate & Parse', () => {
     const { resolved, bodyStream } = hydrate(template, { body: { type: 'provided', content: 0 } }, [stream]);
     const { ir, bodyStream: parsedBodyStream } = parse(resolved, bodyStream);
 
-    assert.equal(resolved.endsWith('\r\n:httpt-body-type: provided\r\n'), true);
+    assert.equal(resolved.endsWith('\r\n:httpt-body-type: provided\r\n\r\n'), true);
     assert.strictEqual(parsedBodyStream, stream);
     assert.deepEqual(ir.body, { type: 'provided', content: 0 });
+  });
+
+  it('should hydrate streamed template input across chunk boundaries', async () => {
+    async function* chunks() {
+      const source = 'GET /{{ path | url }} HTTP/1.1\r\nHost: {{ host | raw }}\r\n';
+      for (const char of source) {
+        yield Buffer.from(char);
+      }
+    }
+
+    const { resolved, map } = await hydrateAsync(chunks(), { path: 'a b', host: 'example.com' });
+
+    assert.equal(resolved, 'GET /a%20b HTTP/1.1\r\nHost: example.com\r\n');
+    assert.deepEqual(map, [
+      {
+        'hydrated-start': 5,
+        'original-start': 5,
+        'hydrated-length': 5,
+        'original-length': 16,
+      },
+      {
+        'hydrated-start': 27,
+        'original-start': 38,
+        'hydrated-length': 11,
+        'original-length': 16,
+      },
+    ]);
   });
 
   it('should reject template body content before resolving body placeholders when data.body is provided', () => {

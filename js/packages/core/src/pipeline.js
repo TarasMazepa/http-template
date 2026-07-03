@@ -273,18 +273,27 @@ function parseHydrateTag(inner, data, streams) {
   return String(replacement);
 }
 
-function hydrate(template, data, streams = []) {
+function createHydrationState(data, streams, sink) {
   const prepared = prepareHydrationContext(data, streams);
   data = prepared.data;
   streams = prepared.streams;
 
-  const source = String(template);
-  const newline = source.includes('\r\n') ? '\r\n' : '\n';
   const map = [];
-  const output = [];
+  let newline = '\n';
   let writeCursor = 0;
+  let readCursor = 0;
   let bodyStream = null;
   let boundarySeen = false;
+  let pendingHead = '';
+  let mode = 'text';
+  let pendingSourceOpen = false;
+  let pendingSourceOpenIndex = -1;
+  let tagStart = -1;
+  let tagInner = '';
+  let tagPendingOpen = false;
+  let tagPendingOpenIndex = -1;
+  let tagPendingClose = false;
+  let previousSourceChar = '';
 
   const dynamicHeadLines = [];
   if (Array.isArray(data.headers)) {
@@ -297,45 +306,55 @@ function hydrate(template, data, streams = []) {
     dynamicHeadLines.push(`:httpt-body-type: ${data.body.type || 'text'}`);
   }
 
+  function emit(value) {
+    if (value) {
+      sink.write(value);
+    }
+  }
+
   function appendRaw(value, checkBoundary = true) {
     for (const char of String(value)) {
-      output.push(char);
       writeCursor += char.length;
 
       if (checkBoundary && !boundarySeen) {
+        pendingHead += char;
         const boundary = findBoundaryAtTail();
         if (boundary) {
           enterBody(boundary);
+        } else {
+          flushSafeHeadPrefix();
         }
+      } else {
+        emit(char);
       }
     }
   }
 
   function findBoundaryAtTail() {
-    const length = output.length;
-    if (
-      length >= 4 &&
-      output[length - 4] === '\r' &&
-      output[length - 3] === '\n' &&
-      output[length - 2] === '\r' &&
-      output[length - 1] === '\n'
-    ) {
+    if (pendingHead.endsWith('\r\n\r\n')) {
       return '\r\n\r\n';
     }
 
-    if (length >= 2 && output[length - 2] === '\n' && output[length - 1] === '\n') {
+    if (pendingHead.endsWith('\n\n')) {
       return '\n\n';
     }
 
     return null;
   }
 
+  function flushSafeHeadPrefix() {
+    while (pendingHead.length > 4) {
+      emit(pendingHead[0]);
+      pendingHead = pendingHead.slice(1);
+    }
+  }
+
   function trimTrailingNewlines() {
-    while (output.length > 0 && output[output.length - 1] === '\n') {
-      output.pop();
+    while (pendingHead.endsWith('\n')) {
+      pendingHead = pendingHead.slice(0, -1);
       writeCursor -= 1;
-      if (output[output.length - 1] === '\r') {
-        output.pop();
+      if (pendingHead.endsWith('\r')) {
+        pendingHead = pendingHead.slice(0, -1);
         writeCursor -= 1;
       }
     }
@@ -369,7 +388,9 @@ function hydrate(template, data, streams = []) {
 
   function enterBody(boundary) {
     boundarySeen = true;
-    output.length -= boundary.length;
+    const headPrefix = pendingHead.slice(0, -boundary.length);
+    emit(headPrefix);
+    pendingHead = '';
     writeCursor -= boundary.length;
     injectDynamicHeadLines();
     appendRaw(boundary, false);
@@ -378,6 +399,8 @@ function hydrate(template, data, streams = []) {
 
   function finishHeadAtEof() {
     trimTrailingNewlines();
+    emit(pendingHead);
+    pendingHead = '';
     injectDynamicHeadLines();
 
     if (!data.body) {
@@ -388,7 +411,7 @@ function hydrate(template, data, streams = []) {
     const bodyType = data.body.type || 'text';
     if (bodyType === 'provided') {
       attachDynamicBody();
-      appendRaw(newline, false);
+      appendRaw(`${newline}${newline}`, false);
       return;
     }
 
@@ -405,65 +428,180 @@ function hydrate(template, data, streams = []) {
     }
   }
 
-  let readCursor = 0;
-  while (readCursor < source.length) {
-    const char = source[readCursor];
-
+  function processTextChar(char, index) {
     if (boundarySeen && data.body) {
       assertNoTemplateBodyCharacter(char);
-      readCursor += 1;
-      continue;
+      return;
     }
 
-    if (char === '{' && source[readCursor + 1] === '{') {
-      const tagStart = readCursor;
-      readCursor += 2;
-      let inner = '';
-
-      while (readCursor < source.length) {
-        if (source[readCursor] === '{' && source[readCursor + 1] === '{') {
-          throw createNamedError('TemplateSyntaxError', 'Nested template tags are not allowed', { index: readCursor });
-        }
-
-        if (source[readCursor] === '}' && source[readCursor + 1] === '}') {
-          break;
-        }
-
-        inner += source[readCursor];
-        readCursor += 1;
+    if (pendingSourceOpen) {
+      if (char === '{') {
+        mode = 'tag';
+        tagStart = pendingSourceOpenIndex;
+        tagInner = '';
+        pendingSourceOpen = false;
+        return;
       }
 
-      if (readCursor >= source.length) {
-        throw createNamedError('TemplateSyntaxError', 'Unclosed template tag', { index: tagStart });
-      }
+      appendRaw('{');
+      pendingSourceOpen = false;
+      pendingSourceOpenIndex = -1;
+      processTextChar(char, index);
+      return;
+    }
 
-      const originalLength = readCursor + 2 - tagStart;
-      const hydratedStart = writeCursor;
-      const replacement = parseHydrateTag(inner, data, streams);
-      map.push({
-        'hydrated-start': hydratedStart,
-        'original-start': tagStart,
-        'hydrated-length': replacement.length,
-        'original-length': originalLength,
-      });
-      appendRaw(replacement);
-      readCursor += 2;
-      continue;
+    if (char === '{') {
+      pendingSourceOpen = true;
+      pendingSourceOpenIndex = index;
+      return;
     }
 
     appendRaw(char);
-    readCursor += 1;
   }
 
-  if (!boundarySeen) {
-    finishHeadAtEof();
+  function processTagChar(char, index) {
+    if (tagPendingOpen) {
+      if (char === '{') {
+        throw createNamedError('TemplateSyntaxError', 'Nested template tags are not allowed', { index: tagPendingOpenIndex });
+      }
+      tagInner += '{';
+      tagPendingOpen = false;
+      tagPendingOpenIndex = -1;
+      processTagChar(char, index);
+      return;
+    }
+
+    if (tagPendingClose) {
+      if (char === '}') {
+        const originalLength = index + 1 - tagStart;
+        const hydratedStart = writeCursor;
+        const replacement = parseHydrateTag(tagInner, data, streams);
+        map.push({
+          'hydrated-start': hydratedStart,
+          'original-start': tagStart,
+          'hydrated-length': replacement.length,
+          'original-length': originalLength,
+        });
+        appendRaw(replacement);
+        mode = 'text';
+        tagStart = -1;
+        tagInner = '';
+        tagPendingClose = false;
+        return;
+      }
+
+      tagInner += '}';
+      tagPendingClose = false;
+      processTagChar(char, index);
+      return;
+    }
+
+    if (char === '{') {
+      tagPendingOpen = true;
+      tagPendingOpenIndex = index;
+      return;
+    }
+
+    if (char === '}') {
+      tagPendingClose = true;
+      return;
+    }
+
+    tagInner += char;
   }
 
+  function feedChar(char) {
+    const index = readCursor;
+    readCursor += char.length;
+
+    if (char === '\n' && previousSourceChar === '\r') {
+      newline = '\r\n';
+    }
+
+    if (mode === 'tag') {
+      processTagChar(char, index);
+    } else {
+      processTextChar(char, index);
+    }
+
+    previousSourceChar = char;
+  }
+
+  function finish() {
+    if (mode === 'tag') {
+      throw createNamedError('TemplateSyntaxError', 'Unclosed template tag', { index: tagStart });
+    }
+
+    if (pendingSourceOpen) {
+      appendRaw('{');
+      pendingSourceOpen = false;
+    }
+
+    if (!boundarySeen) {
+      finishHeadAtEof();
+    } else if (pendingHead) {
+      emit(pendingHead);
+      pendingHead = '';
+    }
+
+    return { map, bodyStream };
+  }
+
+  return { feedChar, finish };
+}
+
+function hydrate(template, data, streams = []) {
+  const output = [];
+  const state = createHydrationState(data, streams, {
+    write(value) {
+      output.push(value);
+    },
+  });
+
+  for (const char of String(template)) {
+    state.feedChar(char);
+  }
+
+  const { map, bodyStream } = state.finish();
   return { resolved: output.join(''), map, bodyStream };
 }
 
 async function hydrateAsync(template, data, streams = []) {
-  return hydrate(await resolveToString(template), data, streams);
+  if (typeof template === 'string' || Buffer.isBuffer(template) || template instanceof Uint8Array) {
+    return hydrate(await resolveToString(template), data, streams);
+  }
+
+  const output = [];
+  const state = createHydrationState(data, streams, {
+    write(value) {
+      output.push(value);
+    },
+  });
+
+  if (template && typeof template.getReader === 'function') {
+    const reader = template.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      for (const char of Buffer.from(value).toString('utf8')) {
+        state.feedChar(char);
+      }
+    }
+  } else if (template && typeof template[Symbol.asyncIterator] === 'function') {
+    for await (const chunk of template) {
+      const text = Buffer.isBuffer(chunk) || chunk instanceof Uint8Array
+        ? Buffer.from(chunk).toString('utf8')
+        : String(chunk);
+      for (const char of text) {
+        state.feedChar(char);
+      }
+    }
+  } else {
+    return hydrate(await resolveToString(template), data, streams);
+  }
+
+  const { map, bodyStream } = state.finish();
+  return { resolved: output.join(''), map, bodyStream };
 }
 
 function parse(resolved, optionalBodyStream = null) {
