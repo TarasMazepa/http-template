@@ -188,18 +188,39 @@ function materializeStream(value) {
   throw createNamedError('TemplateSyntaxError', 'Only string and Buffer stream values are supported synchronously');
 }
 
+function isHydrateFunctionName(value) {
+  if (!value) {
+    return false;
+  }
+
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    const isDigit = code >= 48 && code <= 57;
+    const isUpper = code >= 65 && code <= 90;
+    const isLower = code >= 97 && code <= 122;
+    if (!isDigit && !isUpper && !isLower && char !== '-') {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function parseHydrateFunction(functionSource) {
   const trimmed = functionSource.trim();
-  const match = trimmed.match(/^([A-Za-z0-9-]+)(?:\((.*)\))?$/);
+  const openParen = trimmed.indexOf('(');
+  const closeParen = trimmed.endsWith(')') ? trimmed.length - 1 : -1;
+  const hasArguments = openParen !== -1;
+  const name = hasArguments ? trimmed.slice(0, openParen).trim() : trimmed;
 
-  if (!match) {
+  if (!isHydrateFunctionName(name) || (hasArguments && closeParen === -1)) {
     throw createNamedError('TemplateSyntaxError', `Invalid hydrate function: ${trimmed}`);
   }
 
-  const name = match[1];
-  const args = match[2] == null || !match[2].trim()
+  const argumentSource = hasArguments ? trimmed.slice(openParen + 1, closeParen) : '';
+  const args = !argumentSource.trim()
     ? []
-    : match[2].split(',').map((arg) => arg.trim()).filter(Boolean);
+    : argumentSource.split(',').map((arg) => arg.trim()).filter(Boolean);
 
   if (!BUILT_IN_FUNCTIONS.has(name)) {
     throw createNamedError('TemplateSyntaxError', `Unsupported hydrate function: ${name}`);
@@ -231,85 +252,214 @@ function applyHydrateFunction(value, hydrateFunction, streams) {
   }
 }
 
+function parseHydrateTag(inner, data, streams) {
+  const parts = inner.split('|').map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) {
+    throw createNamedError('TemplateSyntaxError', 'Template tag must include at least one function');
+  }
+
+  const dataKey = parts[0];
+  if (!Object.prototype.hasOwnProperty.call(data, dataKey)) {
+    throw createNamedError('MissingArgumentError', `Missing data key: ${dataKey}`, {
+      missing: dataKey,
+    });
+  }
+
+  let replacement = data[dataKey];
+  for (const transform of parts.slice(1).map(parseHydrateFunction)) {
+    replacement = applyHydrateFunction(replacement, transform, streams);
+  }
+
+  return String(replacement);
+}
+
 function hydrate(template, data, streams = []) {
   const prepared = prepareHydrationContext(data, streams);
   data = prepared.data;
   streams = prepared.streams;
 
-  const map = [];
   const source = String(template);
   const newline = source.includes('\r\n') ? '\r\n' : '\n';
-  let shift = 0;
-
-  let resolved = source.replace(/\{\{\s*([^|}]+?)\s*((?:\|\s*[^|}]+?\s*)+)\}\}/g, (match, key, functionSource, offset) => {
-    const dataKey = key.trim();
-    const transforms = functionSource
-      .split('|')
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map(parseHydrateFunction);
-
-    if (!Object.prototype.hasOwnProperty.call(data, dataKey)) {
-      throw createNamedError('MissingArgumentError', `Missing data key: ${dataKey}`, {
-        missing: dataKey,
-      });
-    }
-
-    let replacement = data[dataKey];
-    for (const transform of transforms) {
-      replacement = applyHydrateFunction(replacement, transform, streams);
-    }
-    replacement = String(replacement);
-
-    map.push({
-      'hydrated-start': offset + shift,
-      'original-start': offset,
-      'hydrated-length': replacement.length,
-      'original-length': match.length,
-    });
-    shift += replacement.length - match.length;
-
-    return replacement;
-  });
-
-  const boundaryMatch = resolved.match(/\r?\n\r?\n/);
-  const boundaryIndex = boundaryMatch ? boundaryMatch.index : resolved.length;
-  let boundary = boundaryMatch ? boundaryMatch[0] : '';
-  let head = resolved.slice(0, boundaryIndex).replace(/(?:\r?\n)+$/, '');
-  let body = boundaryMatch ? resolved.slice(boundaryIndex + boundary.length) : '';
+  const map = [];
+  const output = [];
+  let writeCursor = 0;
   let bodyStream = null;
+  let boundarySeen = false;
 
-  if (Array.isArray(data.headers) && data.headers.length > 0) {
-    const dynamicHeaders = data.headers
-      .map(({ name, value }) => `${name}: ${value}`)
-      .join(newline);
-    head = `${head}${newline}${dynamicHeaders}`;
+  const dynamicHeadLines = [];
+  if (Array.isArray(data.headers)) {
+    for (const { name, value } of data.headers) {
+      dynamicHeadLines.push(`${name}: ${value}`);
+    }
   }
 
   if (data.body) {
-    if (body.trim()) {
-      const error = new Error('Template already contains a body');
-      error.name = 'BodyConflictError';
-      throw error;
-    }
-    const bodyType = data.body.type || 'text';
-    head = `${head}${newline}:httpt-body-type: ${bodyType}`;
+    dynamicHeadLines.push(`:httpt-body-type: ${data.body.type || 'text'}`);
+  }
 
-    if (bodyType === 'provided') {
-      const streamIndex = data.body.content == null ? 0 : data.body.content;
-      bodyStream = streams[streamIndex] || null;
-      body = '';
-    } else {
-      body = data.body.content == null ? '' : String(data.body.content);
-      if (body && !boundary) {
-        boundary = `${newline}${newline}`;
+  function appendRaw(value, checkBoundary = true) {
+    for (const char of String(value)) {
+      output.push(char);
+      writeCursor += char.length;
+
+      if (checkBoundary && !boundarySeen) {
+        const boundary = findBoundaryAtTail();
+        if (boundary) {
+          enterBody(boundary);
+        }
       }
     }
   }
 
-  resolved = `${head}${boundary || newline}${body}`;
+  function findBoundaryAtTail() {
+    const length = output.length;
+    if (
+      length >= 4 &&
+      output[length - 4] === '\r' &&
+      output[length - 3] === '\n' &&
+      output[length - 2] === '\r' &&
+      output[length - 1] === '\n'
+    ) {
+      return '\r\n\r\n';
+    }
 
-  return { resolved, map, bodyStream };
+    if (length >= 2 && output[length - 2] === '\n' && output[length - 1] === '\n') {
+      return '\n\n';
+    }
+
+    return null;
+  }
+
+  function trimTrailingNewlines() {
+    while (output.length > 0 && output[output.length - 1] === '\n') {
+      output.pop();
+      writeCursor -= 1;
+      if (output[output.length - 1] === '\r') {
+        output.pop();
+        writeCursor -= 1;
+      }
+    }
+  }
+
+  function injectDynamicHeadLines() {
+    if (dynamicHeadLines.length === 0) {
+      return;
+    }
+
+    appendRaw(newline, false);
+    appendRaw(dynamicHeadLines.join(newline), false);
+  }
+
+  function attachDynamicBody() {
+    if (!data.body) {
+      return;
+    }
+
+    const bodyType = data.body.type || 'text';
+    if (bodyType === 'provided') {
+      const streamIndex = data.body.content == null ? 0 : data.body.content;
+      bodyStream = streams[streamIndex] || null;
+      return;
+    }
+
+    if (data.body.content != null) {
+      appendRaw(String(data.body.content), false);
+    }
+  }
+
+  function enterBody(boundary) {
+    boundarySeen = true;
+    output.length -= boundary.length;
+    writeCursor -= boundary.length;
+    injectDynamicHeadLines();
+    appendRaw(boundary, false);
+    attachDynamicBody();
+  }
+
+  function finishHeadAtEof() {
+    trimTrailingNewlines();
+    injectDynamicHeadLines();
+
+    if (!data.body) {
+      appendRaw(newline, false);
+      return;
+    }
+
+    const bodyType = data.body.type || 'text';
+    if (bodyType === 'provided') {
+      attachDynamicBody();
+      appendRaw(newline, false);
+      return;
+    }
+
+    appendRaw(`${newline}${newline}`, false);
+    attachDynamicBody();
+  }
+
+  function assertNoTemplateBodyCharacter(char) {
+    const isWhitespace = char === ' ' || char === '\t' || char === '\n' || char === '\r';
+    if (data.body && !isWhitespace) {
+      const error = new Error('Template already contains a body');
+      error.name = 'BodyConflictError';
+      throw error;
+    }
+  }
+
+  let readCursor = 0;
+  while (readCursor < source.length) {
+    const char = source[readCursor];
+
+    if (boundarySeen && data.body) {
+      assertNoTemplateBodyCharacter(char);
+      readCursor += 1;
+      continue;
+    }
+
+    if (char === '{' && source[readCursor + 1] === '{') {
+      const tagStart = readCursor;
+      readCursor += 2;
+      let inner = '';
+
+      while (readCursor < source.length) {
+        if (source[readCursor] === '{' && source[readCursor + 1] === '{') {
+          throw createNamedError('TemplateSyntaxError', 'Nested template tags are not allowed', { index: readCursor });
+        }
+
+        if (source[readCursor] === '}' && source[readCursor + 1] === '}') {
+          break;
+        }
+
+        inner += source[readCursor];
+        readCursor += 1;
+      }
+
+      if (readCursor >= source.length) {
+        throw createNamedError('TemplateSyntaxError', 'Unclosed template tag', { index: tagStart });
+      }
+
+      const originalLength = readCursor + 2 - tagStart;
+      const hydratedStart = writeCursor;
+      const replacement = parseHydrateTag(inner, data, streams);
+      map.push({
+        'hydrated-start': hydratedStart,
+        'original-start': tagStart,
+        'hydrated-length': replacement.length,
+        'original-length': originalLength,
+      });
+      appendRaw(replacement);
+      readCursor += 2;
+      continue;
+    }
+
+    appendRaw(char);
+    readCursor += 1;
+  }
+
+  if (!boundarySeen) {
+    finishHeadAtEof();
+  }
+
+  return { resolved: output.join(''), map, bodyStream };
 }
 
 async function hydrateAsync(template, data, streams = []) {

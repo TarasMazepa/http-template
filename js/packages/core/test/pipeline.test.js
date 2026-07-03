@@ -54,4 +54,13 @@ describe('Pipeline: Hydrate & Parse', () => {
     assert.strictEqual(parsedBodyStream, stream);
     assert.deepEqual(ir.body, { type: 'provided', content: 0 });
   });
+
+  it('should reject template body content before resolving body placeholders when data.body is provided', () => {
+    const template = 'POST /upload HTTP/1.1\nHost: example.com\n\n{{ missing | raw }}';
+
+    assert.throws(
+      () => hydrate(template, { body: { type: 'text', content: 'dynamic body' } }),
+      (error) => error.name === 'BodyConflictError'
+    );
+  });
 });
