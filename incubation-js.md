@@ -61,6 +61,13 @@ export function hydrate(templateStream, data = {}, streams = []) {
   });
 
   // Early Return
+  /**
+   * @type {{
+   * resolvedStream: ReadableStream<string>,
+   * mapStream: ReadableStream<object>,
+   * bodyStream: ReadableStream<Uint8Array>
+   * }}
+   */
   return {
     resolvedStream,
     mapStream,
