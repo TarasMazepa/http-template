@@ -80,6 +80,18 @@ These functions are 'Streaming Transformations' that operate on the `StreamDefin
 * **stream-as-is Mechanism** / Streams / the stream as a raw binary payload, bypassing text encoding. This is used for `multipart/form-data` uploads or binary body transfers.
 * **multipart/form-data (Note):** Multipart requests are single HTTP requests. The body is divided into multiple sections, separated by a `boundary` string defined in the `Content-Type` header.
 
+#### 1.3.2.4 Escaping Template Tags
+
+To prevent syntax conflicts within request bodies (e.g., embedding JSON containing `{{`), HTTP Template provides two officially supported methods for escaping the `{{` and `}}` characters so they are treated as raw text:
+
+* **Inline Escaping (String Literals)**
+  For localized or single-use escaping, developers can pass a string literal directly into the tag using single or double quotes: `{{ '{{' | raw }}`.
+  * *Implementation Note:* To support this, the tag resolution logic must be updated to recognize string literals. If a parameter is wrapped in quotes, it should be treated as raw text rather than a key lookup in the data context.
+
+* **Block Escaping (Raw Blocks)**
+  For massive payloads that contain their own templating logic (e.g., embedding a Vue.js template inside a JSON body), developers can suspend the processing workflow entirely using raw blocks: `{{- raw -}}` and `{{- endraw -}}`.
+  * *Implementation Note:* When the O(1) state machine encounters `{{- raw -}}`, it enters a bypassed state, outputting all subsequent chunks directly to the output stream without evaluation until it exactly matches the `{{- endraw -}}` boundary.
+
 ### 1.3.3 Common Cases & Variations
 
 HTTP Template supports common HTTP request patterns through explicit function-based variable substitution.
