@@ -5,7 +5,7 @@ This document captures the formal architectural decisions and API designs specif
 # 1. True O(1) Memory Hydration & Streaming
 
 * **Chunk-Based State Machine**
-  * We are moving away from string-indexed parsing (`String(template)`) which pulls the entire payload into memory. The `hydrate` function must be implemented as a single-pass, chunk-safe state machine. It needs to handle boundary splits (e.g., holding back an ambiguous `{` at the end of a chunk) to ensure multi-byte characters and template tags are not corrupted across stream chunks.
+  * We are moving away from string-indexed parsing which pulls the entire payload into memory. The `hydrate` function must be implemented as a single-pass, chunk-safe state machine. It needs to handle boundary splits (e.g., holding back an ambiguous `{` at the end of a chunk) to ensure multi-byte characters and template tags are not corrupted across stream chunks.
 * **Polymorphic Inputs**
   * To support Node.js, Deno, and the Browser, the `template` input must support polymorphic types: `String` (for in-memory DX), `ReadableStream` (the Web standard), and `AsyncIterable` (for universal compatibility).
 * **Dual Stream Output (The Plain Object Signature)**
