@@ -26,4 +26,28 @@ describe('Pipeline: Hydrate & Parse', () => {
       assert.deepEqual(ir, fixture.ir);
     });
   }
+
+  it('should hydrate raw and url tags in one pass', async () => {
+    const template = 'GET /users/{{ user-id | url }} HTTP/1.1\nHost: {{ host | raw }}\n';
+    const { resolved } = await hydrate(template, {
+      'user-id': 'a b',
+      host: 'api.example.com',
+    });
+
+    assert.equal(resolved, 'GET /users/a%20b HTTP/1.1\nHost: api.example.com\n');
+  });
+
+  it('should record source map entries while hydrating tags', async () => {
+    const template = 'GET /{{ path | url }} HTTP/1.1\n';
+    const { map } = await hydrate(template, { path: 'a b' });
+
+    assert.deepEqual(map, [
+      {
+        'hydrated-start': 5,
+        'original-start': 5,
+        'hydrated-length': 5,
+        'original-length': 16,
+      },
+    ]);
+  });
 });
