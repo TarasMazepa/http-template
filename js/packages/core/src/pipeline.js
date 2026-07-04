@@ -279,31 +279,28 @@ function createHydrationState(data, streams, sink) {
   streams = prepared.streams;
 
   const map = [];
+  const headLines = [];
   let newline = '\n';
-  let writeCursor = 0;
   let readCursor = 0;
+  let writeCursor = 0;
   let bodyStream = null;
-  let boundarySeen = false;
-  let pendingHead = '';
-  let mode = 'text';
-  let pendingSourceOpen = false;
-  let pendingSourceOpenIndex = -1;
-  let tagStart = -1;
-  let tagInner = '';
-  let tagPendingOpen = false;
-  let tagPendingOpenIndex = -1;
-  let tagPendingClose = false;
-  let previousSourceChar = '';
+  let inBody = false;
+  let headTail = '';
+  let sourceOpenAt = null;
+  let tagOpenAt = null;
+  let tagClosePending = false;
+  let tagOpenPending = null;
+  let tagText = '';
+  let previousChar = '';
 
-  const dynamicHeadLines = [];
   if (Array.isArray(data.headers)) {
     for (const { name, value } of data.headers) {
-      dynamicHeadLines.push(`${name}: ${value}`);
+      headLines.push(`${name}: ${value}`);
     }
   }
 
   if (data.body) {
-    dynamicHeadLines.push(`:httpt-body-type: ${data.body.type || 'text'}`);
+    headLines.push(`:httpt-body-type: ${data.body.type || 'text'}`);
   }
 
   function emit(value) {
@@ -312,17 +309,36 @@ function createHydrationState(data, streams, sink) {
     }
   }
 
-  function appendRaw(value, checkBoundary = true) {
+  function boundaryAtEnd() {
+    if (headTail.endsWith('\r\n\r\n')) return '\r\n\r\n';
+    if (headTail.endsWith('\n\n')) return '\n\n';
+    return null;
+  }
+
+  function emitSafeHead() {
+    while (headTail.length > 4) {
+      emit(headTail[0]);
+      headTail = headTail.slice(1);
+    }
+  }
+
+  function write(value, checkBoundary = true) {
     for (const char of String(value)) {
       writeCursor += char.length;
 
-      if (checkBoundary && !boundarySeen) {
-        pendingHead += char;
-        const boundary = findBoundaryAtTail();
+      if (checkBoundary && !inBody) {
+        headTail += char;
+        const boundary = boundaryAtEnd();
         if (boundary) {
-          enterBody(boundary);
+          inBody = true;
+          emit(headTail.slice(0, -boundary.length));
+          headTail = '';
+          writeCursor -= boundary.length;
+          writeDynamicHead();
+          write(boundary, false);
+          attachDynamicBody();
         } else {
-          flushSafeHeadPrefix();
+          emitSafeHead();
         }
       } else {
         emit(char);
@@ -330,49 +346,25 @@ function createHydrationState(data, streams, sink) {
     }
   }
 
-  function findBoundaryAtTail() {
-    if (pendingHead.endsWith('\r\n\r\n')) {
-      return '\r\n\r\n';
-    }
-
-    if (pendingHead.endsWith('\n\n')) {
-      return '\n\n';
-    }
-
-    return null;
-  }
-
-  function flushSafeHeadPrefix() {
-    while (pendingHead.length > 4) {
-      emit(pendingHead[0]);
-      pendingHead = pendingHead.slice(1);
-    }
-  }
-
-  function trimTrailingNewlines() {
-    while (pendingHead.endsWith('\n')) {
-      pendingHead = pendingHead.slice(0, -1);
+  function trimHeadEnd() {
+    while (headTail.endsWith('\n')) {
+      headTail = headTail.slice(0, -1);
       writeCursor -= 1;
-      if (pendingHead.endsWith('\r')) {
-        pendingHead = pendingHead.slice(0, -1);
+      if (headTail.endsWith('\r')) {
+        headTail = headTail.slice(0, -1);
         writeCursor -= 1;
       }
     }
   }
 
-  function injectDynamicHeadLines() {
-    if (dynamicHeadLines.length === 0) {
-      return;
-    }
-
-    appendRaw(newline, false);
-    appendRaw(dynamicHeadLines.join(newline), false);
+  function writeDynamicHead() {
+    if (headLines.length === 0) return;
+    write(newline, false);
+    write(headLines.join(newline), false);
   }
 
   function attachDynamicBody() {
-    if (!data.body) {
-      return;
-    }
+    if (!data.body) return;
 
     const bodyType = data.body.type || 'text';
     if (bodyType === 'provided') {
@@ -382,44 +374,26 @@ function createHydrationState(data, streams, sink) {
     }
 
     if (data.body.content != null) {
-      appendRaw(String(data.body.content), false);
+      write(String(data.body.content), false);
     }
   }
 
-  function enterBody(boundary) {
-    boundarySeen = true;
-    const headPrefix = pendingHead.slice(0, -boundary.length);
-    emit(headPrefix);
-    pendingHead = '';
-    writeCursor -= boundary.length;
-    injectDynamicHeadLines();
-    appendRaw(boundary, false);
-    attachDynamicBody();
-  }
-
-  function finishHeadAtEof() {
-    trimTrailingNewlines();
-    emit(pendingHead);
-    pendingHead = '';
-    injectDynamicHeadLines();
+  function finishHead() {
+    trimHeadEnd();
+    emit(headTail);
+    headTail = '';
+    writeDynamicHead();
 
     if (!data.body) {
-      appendRaw(newline, false);
+      write(newline, false);
       return;
     }
 
-    const bodyType = data.body.type || 'text';
-    if (bodyType === 'provided') {
-      attachDynamicBody();
-      appendRaw(`${newline}${newline}`, false);
-      return;
-    }
-
-    appendRaw(`${newline}${newline}`, false);
+    write(`${newline}${newline}`, false);
     attachDynamicBody();
   }
 
-  function assertNoTemplateBodyCharacter(char) {
+  function rejectDynamicBodyConflict(char) {
     const isWhitespace = char === ' ' || char === '\t' || char === '\n' || char === '\r';
     if (data.body && !isWhitespace) {
       const error = new Error('Template already contains a body');
@@ -428,120 +402,116 @@ function createHydrationState(data, streams, sink) {
     }
   }
 
-  function processTextChar(char, index) {
-    if (boundarySeen && data.body) {
-      assertNoTemplateBodyCharacter(char);
-      return;
-    }
+  function closeTag(endIndex) {
+    const replacement = parseHydrateTag(tagText, data, streams);
+    map.push({
+      'hydrated-start': writeCursor,
+      'original-start': tagOpenAt,
+      'hydrated-length': replacement.length,
+      'original-length': endIndex + 1 - tagOpenAt,
+    });
 
-    if (pendingSourceOpen) {
-      if (char === '{') {
-        mode = 'tag';
-        tagStart = pendingSourceOpenIndex;
-        tagInner = '';
-        pendingSourceOpen = false;
-        return;
-      }
-
-      appendRaw('{');
-      pendingSourceOpen = false;
-      pendingSourceOpenIndex = -1;
-      processTextChar(char, index);
-      return;
-    }
-
-    if (char === '{') {
-      pendingSourceOpen = true;
-      pendingSourceOpenIndex = index;
-      return;
-    }
-
-    appendRaw(char);
+    write(replacement);
+    tagOpenAt = null;
+    tagText = '';
+    tagClosePending = false;
   }
 
-  function processTagChar(char, index) {
-    if (tagPendingOpen) {
-      if (char === '{') {
-        throw createNamedError('TemplateSyntaxError', 'Nested template tags are not allowed', { index: tagPendingOpenIndex });
-      }
-      tagInner += '{';
-      tagPendingOpen = false;
-      tagPendingOpenIndex = -1;
-      processTagChar(char, index);
+  function readText(char, index) {
+    if (inBody && data.body) {
+      rejectDynamicBodyConflict(char);
       return;
     }
 
-    if (tagPendingClose) {
-      if (char === '}') {
-        const originalLength = index + 1 - tagStart;
-        const hydratedStart = writeCursor;
-        const replacement = parseHydrateTag(tagInner, data, streams);
-        map.push({
-          'hydrated-start': hydratedStart,
-          'original-start': tagStart,
-          'hydrated-length': replacement.length,
-          'original-length': originalLength,
-        });
-        appendRaw(replacement);
-        mode = 'text';
-        tagStart = -1;
-        tagInner = '';
-        tagPendingClose = false;
+    if (sourceOpenAt != null) {
+      if (char === '{') {
+        tagOpenAt = sourceOpenAt;
+        sourceOpenAt = null;
         return;
       }
 
-      tagInner += '}';
-      tagPendingClose = false;
-      processTagChar(char, index);
+      write('{');
+      sourceOpenAt = null;
+      readText(char, index);
       return;
     }
 
     if (char === '{') {
-      tagPendingOpen = true;
-      tagPendingOpenIndex = index;
+      sourceOpenAt = index;
+      return;
+    }
+
+    write(char);
+  }
+
+  function readTag(char, index) {
+    if (tagOpenPending != null) {
+      if (char === '{') {
+        throw createNamedError('TemplateSyntaxError', 'Nested template tags are not allowed', { index: tagOpenPending });
+      }
+      tagText += '{';
+      tagOpenPending = null;
+      readTag(char, index);
+      return;
+    }
+
+    if (tagClosePending) {
+      if (char === '}') {
+        closeTag(index);
+        return;
+      }
+
+      tagText += '}';
+      tagClosePending = false;
+      readTag(char, index);
+      return;
+    }
+
+    if (char === '{') {
+      tagOpenPending = index;
       return;
     }
 
     if (char === '}') {
-      tagPendingClose = true;
+      tagClosePending = true;
       return;
     }
 
-    tagInner += char;
+    tagText += char;
   }
 
   function feedChar(char) {
     const index = readCursor;
     readCursor += char.length;
 
-    if (char === '\n' && previousSourceChar === '\r') {
+    if (char === '\n' && previousChar === '\r') {
       newline = '\r\n';
     }
 
-    if (mode === 'tag') {
-      processTagChar(char, index);
+    if (tagOpenAt == null) {
+      readText(char, index);
     } else {
-      processTextChar(char, index);
+      readTag(char, index);
     }
 
-    previousSourceChar = char;
+    previousChar = char;
   }
 
   function finish() {
-    if (mode === 'tag') {
-      throw createNamedError('TemplateSyntaxError', 'Unclosed template tag', { index: tagStart });
+    if (tagOpenAt != null) {
+      throw createNamedError('TemplateSyntaxError', 'Unclosed template tag', { index: tagOpenAt });
     }
 
-    if (pendingSourceOpen) {
-      appendRaw('{');
-      pendingSourceOpen = false;
+    if (sourceOpenAt != null) {
+      write('{');
+      sourceOpenAt = null;
     }
 
-    if (!boundarySeen) {
-      finishHeadAtEof();
-    } else if (pendingHead) {
-      emit(pendingHead);
-      pendingHead = '';
+    if (!inBody) {
+      finishHead();
+    } else if (headTail) {
+      emit(headTail);
+      headTail = '';
     }
 
     return { map, bodyStream };
