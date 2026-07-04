@@ -284,13 +284,13 @@ function createHydrationState(data, streams, sink) {
   let readCursor = 0;
   let writeCursor = 0;
   let bodyStream = null;
-  let inBody = false;
-  let headTail = '';
-  let sourceOpenAt = null;
-  let tagOpenAt = null;
-  let tagClosePending = false;
-  let tagOpenPending = null;
-  let tagText = '';
+  let bodyStarted = false;
+  let headBuffer = '';
+  let pendingOpenBraceAt = null;
+  let tagStart = null;
+  let sawClosingBrace = false;
+  let nestedOpenBraceAt = null;
+  let tagContent = '';
   let previousChar = '';
 
   if (Array.isArray(data.headers)) {
@@ -310,15 +310,15 @@ function createHydrationState(data, streams, sink) {
   }
 
   function boundaryAtEnd() {
-    if (headTail.endsWith('\r\n\r\n')) return '\r\n\r\n';
-    if (headTail.endsWith('\n\n')) return '\n\n';
+    if (headBuffer.endsWith('\r\n\r\n')) return '\r\n\r\n';
+    if (headBuffer.endsWith('\n\n')) return '\n\n';
     return null;
   }
 
   function emitSafeHead() {
-    while (headTail.length > 4) {
-      emit(headTail[0]);
-      headTail = headTail.slice(1);
+    while (headBuffer.length > 4) {
+      emit(headBuffer[0]);
+      headBuffer = headBuffer.slice(1);
     }
   }
 
@@ -326,13 +326,13 @@ function createHydrationState(data, streams, sink) {
     for (const char of String(value)) {
       writeCursor += char.length;
 
-      if (checkBoundary && !inBody) {
-        headTail += char;
+      if (checkBoundary && !bodyStarted) {
+        headBuffer += char;
         const boundary = boundaryAtEnd();
         if (boundary) {
-          inBody = true;
-          emit(headTail.slice(0, -boundary.length));
-          headTail = '';
+          bodyStarted = true;
+          emit(headBuffer.slice(0, -boundary.length));
+          headBuffer = '';
           writeCursor -= boundary.length;
           writeDynamicHead();
           write(boundary, false);
@@ -347,11 +347,11 @@ function createHydrationState(data, streams, sink) {
   }
 
   function trimHeadEnd() {
-    while (headTail.endsWith('\n')) {
-      headTail = headTail.slice(0, -1);
+    while (headBuffer.endsWith('\n')) {
+      headBuffer = headBuffer.slice(0, -1);
       writeCursor -= 1;
-      if (headTail.endsWith('\r')) {
-        headTail = headTail.slice(0, -1);
+      if (headBuffer.endsWith('\r')) {
+        headBuffer = headBuffer.slice(0, -1);
         writeCursor -= 1;
       }
     }
@@ -380,8 +380,8 @@ function createHydrationState(data, streams, sink) {
 
   function finishHead() {
     trimHeadEnd();
-    emit(headTail);
-    headTail = '';
+    emit(headBuffer);
+    headBuffer = '';
     writeDynamicHead();
 
     if (!data.body) {
@@ -403,41 +403,41 @@ function createHydrationState(data, streams, sink) {
   }
 
   function closeTag(endIndex) {
-    const replacement = parseHydrateTag(tagText, data, streams);
+    const replacement = parseHydrateTag(tagContent, data, streams);
     map.push({
       'hydrated-start': writeCursor,
-      'original-start': tagOpenAt,
+      'original-start': tagStart,
       'hydrated-length': replacement.length,
-      'original-length': endIndex + 1 - tagOpenAt,
+      'original-length': endIndex + 1 - tagStart,
     });
 
     write(replacement);
-    tagOpenAt = null;
-    tagText = '';
-    tagClosePending = false;
+    tagStart = null;
+    tagContent = '';
+    sawClosingBrace = false;
   }
 
   function readText(char, index) {
-    if (inBody && data.body) {
+    if (bodyStarted && data.body) {
       rejectDynamicBodyConflict(char);
       return;
     }
 
-    if (sourceOpenAt != null) {
+    if (pendingOpenBraceAt != null) {
       if (char === '{') {
-        tagOpenAt = sourceOpenAt;
-        sourceOpenAt = null;
+        tagStart = pendingOpenBraceAt;
+        pendingOpenBraceAt = null;
         return;
       }
 
       write('{');
-      sourceOpenAt = null;
+      pendingOpenBraceAt = null;
       readText(char, index);
       return;
     }
 
     if (char === '{') {
-      sourceOpenAt = index;
+      pendingOpenBraceAt = index;
       return;
     }
 
@@ -445,39 +445,39 @@ function createHydrationState(data, streams, sink) {
   }
 
   function readTag(char, index) {
-    if (tagOpenPending != null) {
+    if (nestedOpenBraceAt != null) {
       if (char === '{') {
-        throw createNamedError('TemplateSyntaxError', 'Nested template tags are not allowed', { index: tagOpenPending });
+        throw createNamedError('TemplateSyntaxError', 'Nested template tags are not allowed', { index: nestedOpenBraceAt });
       }
-      tagText += '{';
-      tagOpenPending = null;
+      tagContent += '{';
+      nestedOpenBraceAt = null;
       readTag(char, index);
       return;
     }
 
-    if (tagClosePending) {
+    if (sawClosingBrace) {
       if (char === '}') {
         closeTag(index);
         return;
       }
 
-      tagText += '}';
-      tagClosePending = false;
+      tagContent += '}';
+      sawClosingBrace = false;
       readTag(char, index);
       return;
     }
 
     if (char === '{') {
-      tagOpenPending = index;
+      nestedOpenBraceAt = index;
       return;
     }
 
     if (char === '}') {
-      tagClosePending = true;
+      sawClosingBrace = true;
       return;
     }
 
-    tagText += char;
+    tagContent += char;
   }
 
   function feedChar(char) {
@@ -488,7 +488,7 @@ function createHydrationState(data, streams, sink) {
       newline = '\r\n';
     }
 
-    if (tagOpenAt == null) {
+    if (tagStart == null) {
       readText(char, index);
     } else {
       readTag(char, index);
@@ -498,20 +498,20 @@ function createHydrationState(data, streams, sink) {
   }
 
   function finish() {
-    if (tagOpenAt != null) {
-      throw createNamedError('TemplateSyntaxError', 'Unclosed template tag', { index: tagOpenAt });
+    if (tagStart != null) {
+      throw createNamedError('TemplateSyntaxError', 'Unclosed template tag', { index: tagStart });
     }
 
-    if (sourceOpenAt != null) {
+    if (pendingOpenBraceAt != null) {
       write('{');
-      sourceOpenAt = null;
+      pendingOpenBraceAt = null;
     }
 
-    if (!inBody) {
+    if (!bodyStarted) {
       finishHead();
-    } else if (headTail) {
-      emit(headTail);
-      headTail = '';
+    } else if (headBuffer) {
+      emit(headBuffer);
+      headBuffer = '';
     }
 
     return { map, bodyStream };
