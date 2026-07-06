@@ -1,104 +1,80 @@
-async function hydrate(template, data, streams = []) {
-  const source = String(template);
-  const output = [];
-  const map = [];
+function hydrate(template, data = {}, streams = []) {
+  let resolvedController;
+  let mapController;
+  let bodyController;
 
-  let readCursor = 0;
-  let writeCursor = 0;
+  const resolvedStream = new ReadableStream({
+    start(controller) {
+      resolvedController = controller;
+    },
+  });
 
-  function templateError(message, index) {
-    const error = new Error(message);
-    error.name = 'TemplateSyntaxError';
-    error.index = index;
-    return error;
+  const mapStream = new ReadableStream({
+    start(controller) {
+      mapController = controller;
+    },
+  });
+
+  const bodyStream = new ReadableStream({
+    start(controller) {
+      bodyController = controller;
+    },
+  });
+
+  processStreamBackground(template, data, streams, {
+    resolved: resolvedController,
+    map: mapController,
+    body: bodyController,
+  }).catch((error) => {
+    resolvedController.error(error);
+    mapController.error(error);
+    bodyController.error(error);
+  });
+
+  return { resolvedStream, mapStream, bodyStream };
+}
+
+async function processStreamBackground(template, data, streams, controllers) {
+  for await (const chunk of readTemplateChunks(template)) {
+    controllers.resolved.enqueue(decodeChunk(chunk));
   }
 
-  function missingKeyError(key) {
-    const error = new Error(`Missing data key: ${key}`);
-    error.name = 'MissingArgumentError';
-    error.missing = key;
-    return error;
+  controllers.resolved.close();
+  controllers.map.close();
+  controllers.body.close();
+}
+
+async function* readTemplateChunks(template) {
+  if (typeof template === 'string') {
+    yield template;
+    return;
   }
 
-  function applyFunction(value, name, tagStart) {
-    if (name === 'raw') {
-      return String(value);
+  if (template && typeof template.getReader === 'function') {
+    const reader = template.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) return;
+      yield value;
     }
-
-    if (name === 'url') {
-      return encodeURIComponent(String(value));
-    }
-
-    throw templateError(`Unsupported hydrate function: ${name}`, tagStart);
   }
 
-  function resolveTag(tagSource, tagStart) {
-    const parts = tagSource.split('|').map((part) => part.trim()).filter(Boolean);
-    if (parts.length < 2) {
-      throw templateError('Template tag must include at least one function', tagStart);
+  if (template && typeof template[Symbol.asyncIterator] === 'function') {
+    for await (const chunk of template) {
+      yield chunk;
     }
-
-    const key = parts[0];
-    if (!Object.prototype.hasOwnProperty.call(data || {}, key)) {
-      throw missingKeyError(key);
-    }
-
-    let value = data[key];
-    for (const name of parts.slice(1)) {
-      value = applyFunction(value, name, tagStart);
-    }
-
-    return String(value);
+    return;
   }
 
-  function write(value) {
-    output.push(value);
-    writeCursor += value.length;
+  yield String(template);
+}
+
+function decodeChunk(chunk) {
+  if (typeof chunk === 'string') {
+    return chunk;
   }
 
-  while (readCursor < source.length) {
-    if (source[readCursor] !== '{' || source[readCursor + 1] !== '{') {
-      write(source[readCursor]);
-      readCursor += 1;
-      continue;
-    }
-
-    const tagStart = readCursor;
-    readCursor += 2;
-
-    let tagSource = '';
-    while (readCursor < source.length) {
-      if (source[readCursor] === '{' && source[readCursor + 1] === '{') {
-        throw templateError('Nested template tags are not allowed', readCursor);
-      }
-
-      if (source[readCursor] === '}' && source[readCursor + 1] === '}') {
-        break;
-      }
-
-      tagSource += source[readCursor];
-      readCursor += 1;
-    }
-
-    if (readCursor >= source.length) {
-      throw templateError('Unclosed template tag', tagStart);
-    }
-
-    const originalLength = readCursor + 2 - tagStart;
-    const replacement = resolveTag(tagSource, tagStart);
-
-    map.push({
-      'hydrated-start': writeCursor,
-      'original-start': tagStart,
-      'hydrated-length': replacement.length,
-      'original-length': originalLength,
-    });
-
-    write(replacement);
-    readCursor += 2;
-  }
-
-  return { resolved: output.join(''), map, bodyStream: null };
+  return new TextDecoder().decode(chunk);
 }
 
 function parse(resolved, optionalBodyStream = null) {
