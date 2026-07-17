@@ -27,50 +27,49 @@ This document captures the formal architectural decisions and API designs specif
  * @param {Object} [data={}]
  * @param {Array<ReadableStream<Uint8Array> | Blob | any>} [streams=[]]
  * @returns {{
- * resolvedStream: ReadableStream<string>,
- * mapStream: ReadableStream<object>,
+ * resolvedStream: AsyncIterable<string>,
+ * mapStream: AsyncIterable<object>,
  * bodyStream: ReadableStream<Uint8Array>
  * }}
  */
 export function hydrate(templateStream, data = {}, streams = []) {
-  let resolvedController, mapController, bodyController;
+  let bodyController;
 
   // 1. Synchronous Stream Composition
-  const resolvedStream = new ReadableStream({
-    start(c) { resolvedController = c; }
-  });
-  const mapStream = new ReadableStream({
-    start(c) { mapController = c; }
-  });
+  async function* generateResolvedStream() {
+    // Yield strings chunk-by-chunk
+  }
+
+  async function* generateMapStream() {
+    // Yield map objects chunk-by-chunk
+  }
+
   const bodyStream = new ReadableStream({
     start(c) { bodyController = c; }
   });
 
   // 2. Detached Background Processing (Never awaited)
-  // The worker acts as a router. It pipes data to resolvedController
-  // until the \n\n boundary is crossed, then routes to bodyController.
+  // The worker acts as a router. It populates shared state for the
+  // iterables until the \n\n boundary is crossed, then routes to bodyController.
   processStreamBackground(templateStream, data, streams, {
-    resolved: resolvedController,
-    map: mapController,
     body: bodyController
   }).catch(err => {
     // 3. Fail-Fast Error Propagation
-    resolvedController.error(err);
-    mapController.error(err);
     bodyController.error(err);
+    // (Errors in resolved/map generators would be handled by rejecting their promises)
   });
 
   // Early Return
   /**
    * @type {{
-   * resolvedStream: ReadableStream<string>,
-   * mapStream: ReadableStream<object>,
+   * resolvedStream: AsyncIterable<string>,
+   * mapStream: AsyncIterable<object>,
    * bodyStream: ReadableStream<Uint8Array>
    * }}
    */
   return {
-    resolvedStream,
-    mapStream,
+    resolvedStream: generateResolvedStream(),
+    mapStream: generateMapStream(),
     bodyStream
   };
 }
@@ -82,7 +81,7 @@ async function processStreamBackground(templateStream, data, streams, controller
   // The single-pass state machine lives here.
   // It decodes Uint8Array chunks, evaluates tags like {{ stream-as-is }},
   // and tracks the \n\n boundary.
-  // - IF !isBodyPhase: enqueue to controllers.resolved
+  // - IF !isBodyPhase: enqueue to shared state for generators
   // - IF isBodyPhase: enqueue to controllers.body
 }
 ```
@@ -124,12 +123,6 @@ export async function parse(resolvedIterable, optionalBodyStream) {
 
 ## 2.3 Public API Unification
 
-While the internal pipeline uses a hybrid model for raw performance, if these streams must be exposed to public SDK consumers who expect a strictly unified API, the high-performance async iterables can be effortlessly wrapped into standard Web Streams with zero dependencies:
+While the internal pipeline uses a hybrid model for raw performance, it is deliberately exposed as the final API signature. The decision prioritizes internal pipeline efficiency and maximum CPU throughput over strict developer API uniformity.
 
-```javascript
-return {
-  resolvedStream: ReadableStream.from(generateResolvedText()),
-  mapStream: ReadableStream.from(generateMapObjects()),
-  bodyStream: getBinaryBodyStream() // Already a ReadableStream
-};
-```
+Because the primary downstream consumers are the `parse` and `execute` stages within the framework, standardizing all outputs to Web Streams (e.g., using `ReadableStream.from()`) would introduce unnecessary memory and queuing overhead. SDK consumers accessing the low-level `hydrate` function directly are expected to consume the hybrid stream signature as-is.
