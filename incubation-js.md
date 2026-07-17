@@ -86,3 +86,50 @@ async function processStreamBackground(templateStream, data, streams, controller
   // - IF isBodyPhase: enqueue to controllers.body
 }
 ```
+
+# 2. JavaScript Stream Alternatives & Optimization
+
+To achieve maximum efficiency and maintain an O(1) memory footprint, the HTTP Template JavaScript SDK employs a hybrid streaming strategy. It leverages both `AsyncIterable` (Async Generators) and the Web Streams API (`ReadableStream`) depending on the specific performance requirements of the data being routed.
+
+## 2.1 The Hybrid Stream Strategy
+
+When outputting the triple stream signature `({ resolvedStream, mapStream, bodyStream })`, the engine mixes stream types to balance raw CPU speed with safe memory management:
+
+*   **`resolvedStream` (Headers & Request Line):** Uses `AsyncIterable<string>` (`async function*`).
+    *   *Reasoning:* Async generators are native language features with exceptionally low CPU overhead. They can process and yield text chunks significantly faster than Web Streams because they avoid the heavy locking, promise allocation, and queue management required by the Web Streams API.
+*   **`mapStream` (Index Shift Map):** Uses `AsyncIterable<object>` (`async function*`).
+    *   *Reasoning:* Yielding plain JavaScript objects through a native generator acts as a high-performance memory reference pipeline. This allows the downstream consumer to process the Index Shift Map almost instantaneously without the overhead of enqueueing objects into a Web Stream.
+*   **`bodyStream` (Payload):** Uses `ReadableStream<Uint8Array>`.
+    *   *Reasoning:* For raw binary data and network I/O, `ReadableStream` is mandatory. It natively handles backpressure and supports BYOB (Bring Your Own Buffer) for zero-copy reads. This is critical for preventing memory bloat and garbage collection pauses when piping massive payloads (like file uploads) to execution clients like `fetch`.
+
+## 2.2 Internal Consumption (The `parse` Stage)
+
+By utilizing this hybrid interface internally, the downstream `parse` function benefits from maximum CPU speed for text/objects and maximum memory safety for binary data.
+
+The parser can consume the headers blazingly fast using a standard `for await...of` loop, while seamlessly handing off the unread `ReadableStream` body to the execution network layer:
+
+```javascript
+export async function parse(resolvedIterable, optionalBodyStream) {
+  let headString = "";
+
+  // High-performance consumption of the resolved headers
+  for await (const chunk of resolvedIterable) {
+    headString += chunk;
+    // ... logic to detect the \n\n boundary ...
+  }
+
+  // Parse the head, construct the IR, and pass the bodyStream through
+}
+```
+
+## 2.3 Public API Unification
+
+While the internal pipeline uses a hybrid model for raw performance, if these streams must be exposed to public SDK consumers who expect a strictly unified API, the high-performance async iterables can be effortlessly wrapped into standard Web Streams with zero dependencies:
+
+```javascript
+return {
+  resolvedStream: ReadableStream.from(generateResolvedText()),
+  mapStream: ReadableStream.from(generateMapObjects()),
+  bodyStream: getBinaryBodyStream() // Already a ReadableStream
+};
+```
