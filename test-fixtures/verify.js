@@ -6,7 +6,7 @@ const { E2E_DIR, getFixtureBaseNames } = require('../js/packages/test-utils/inde
 
 describe('E2E Matrix Validation', () => {
   it('should verify all required files exist and are well-formed', () => {
-    const allFiles = fs.readdirSync(E2E_DIR).filter(f => f !== 'README.md' && f !== 'TEST_MATRIX.md');
+    const allFiles = fs.readdirSync(E2E_DIR).filter(f => f !== 'README.md' && f !== 'test-matrix.md');
     const claimedFiles = new Set();
 
     // 1. Identify all suites by their .httpt template
