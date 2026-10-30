@@ -547,7 +547,7 @@ try {
 
 ## 2.3 The Testing Processing Workflow
 
-Testing for the HTTP Template ecosystem is managed via a unified End-to-End (E2E) testing matrix. Please refer to `test-fixtures/e2e/README.md` and `test-fixtures/e2e/TEST_MATRIX.md` for the comprehensive test runner specification, test vectors, and coverage roadmap.
+Testing for the HTTP Template ecosystem is managed via a unified End-to-End (E2E) testing matrix. Please refer to `test-fixtures/e2e/README.md` and `test-fixtures/e2e/test-matrix.md` for the comprehensive test runner specification, test vectors, and coverage roadmap.
 
 
 ## 2.4 Developer Experience & The Smart Hydrator
